@@ -1,0 +1,53 @@
+cff-version: 1.2.0
+title: >-
+  modenanalyse_2fe2s: Mode-resolved bonding reorganization analysis
+  for [2Fe-2S] iron-sulfur clusters from DFT frequency calculations
+message: >-
+  If you use this software in a scientific publication,
+  please cite as below.
+type: software
+authors:
+  - given-names: Lukas
+    family-names: Knauer
+    affiliation: >-
+      AG Schünemann, Department of Physics, RPTU Kaiserslautern-Landau
+version: "1.0.0"
+date-released: "2026-05-07"
+license: GPL-3.0-or-later
+# DOI will be assigned automatically by Zenodo upon first GitHub release.
+# After release, replace the placeholder values below with the actual DOI:
+# doi: 10.5281/zenodo.XXXXXXX
+# url: "https://doi.org/10.5281/zenodo.XXXXXXX"
+# identifiers:
+#   - type: doi
+#     value: 10.5281/zenodo.XXXXXXX
+#     description: Zenodo DOI for v1.0.0
+keywords:
+  - quantum-chemistry
+  - normal-mode-analysis
+  - iron-sulfur-cluster
+  - 2Fe-2S
+  - Rieske-protein
+  - mitoNEET
+  - PCET
+  - proton-coupled-electron-transfer
+  - NRVS
+  - nuclear-resonance-vibrational-spectroscopy
+  - Gaussian
+  - ORCA
+  - reorganization-energy
+  - Marcus-Hush
+abstract: >-
+  Python program for mode-resolved bonding reorganization analysis
+  of [2Fe-2S] iron-sulfur clusters from Gaussian-16 or ORCA-6
+  frequency calculations. For each vibrational mode and each bonding
+  channel (Fe-Fe, Fe-N, Fe-S, N-H, H...acceptor), computes thermally
+  scaled bond modulations Delta r_X and the associated reorganization
+  contributions lambda_X = (1/2) mu omega^2 (Delta r_X)^2 in
+  Marcus-Hush form, with a special reaction-coordinate mode for
+  hydrogen bonds (PCET-relevant). Produces frequency-resolved
+  spectra M_X(omega) and cumulative Lambda_X(omega), a D2h
+  symmetry decomposition after Kingsbury & Senge, plus UMAP
+  embedding with HDBSCAN clustering of the mode feature matrix.
+  Main application: NRVS band identification and system comparisons
+  for Rieske-type proteins and mitoNEET.

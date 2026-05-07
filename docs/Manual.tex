@@ -1,0 +1,847 @@
+% =========================================================================
+% modenanalyse_2fe2s -- English Manual
+% Version 1.0.0 (May 2026)
+% =========================================================================
+\documentclass[11pt,a4paper,twoside]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{mathtools}
+\usepackage{bm}
+\usepackage{siunitx}
+\sisetup{range-phrase = --, range-units = single}
+
+\usepackage[a4paper, left=2.5cm, right=2.5cm, top=2.5cm, bottom=3cm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.5em}
+
+\usepackage{xcolor}
+\definecolor{accent}{RGB}{0,80,140}
+\definecolor{lightgrey}{RGB}{230,230,230}
+\definecolor{darkgrey}{RGB}{60,60,60}
+
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{listings}
+\lstset{
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{lightgrey},
+  frame=single,
+  framerule=0pt,
+  breaklines=true,
+  showstringspaces=false,
+  columns=fullflexible,
+}
+
+\usepackage{titlesec}
+\titleformat{\section}{\Large\bfseries\color{accent}}{\thesection}{1em}{}
+\titleformat{\subsection}{\large\bfseries\color{darkgrey}}{\thesubsection}{1em}{}
+
+\usepackage[colorlinks=true,
+            linkcolor=accent,
+            urlcolor=accent,
+            citecolor=accent]{hyperref}
+
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhead[LE,RO]{\small\textsl{modenanalyse\_2fe2s v1.0.0 -- Manual}}
+\fancyhead[LO,RE]{}
+\fancyfoot[C]{\thepage}
+
+\title{modenanalyse\_2fe2s\\ \large Manual (Version 1.0.0)}
+\author{Lukas Knauer\\ AG Sch\"unemann, RPTU Kaiserslautern-Landau}
+\date{May 2026}
+
+\begin{document}
+
+% =========================================================================
+% Title page
+% =========================================================================
+\begin{titlepage}
+  \begin{center}
+    \vspace*{2cm}
+    {\Huge\bfseries\color{accent} modenanalyse\_2fe2s}\\[0.4cm]
+    {\large Version 1.0.0}\\[2cm]
+
+    \rule{\textwidth}{0.4pt}\\[0.3cm]
+    {\LARGE\bfseries Manual and Theoretical Documentation}\\[0.3cm]
+    \rule{\textwidth}{0.4pt}\\[1cm]
+
+    {\large
+      Mode-resolved bonding reorganization analysis\\
+      for {[}2Fe-2S{]} iron-sulfur proteins\\
+      from Gaussian-16 and ORCA-6 frequency calculations
+    }\\[1.5cm]
+
+    {\large
+      Lukas Knauer\\
+      AG Sch\"unemann\\
+      RPTU Kaiserslautern-Landau
+    }\\[1.5cm]
+
+    \begin{tabular}{rl}
+      \textbf{Cluster type:}    & {[}2Fe-2S{]}, reduced or oxidized,\\
+                                 & for Rieske, ferredoxin, and mitoNEET ligation\\[0.3cm]
+      \textbf{Input:}            & Gaussian-16 \texttt{.log} (\texttt{freq=hpmodes} preferred;\\
+                                 & standard block as fallback) or ORCA-6 \texttt{.hess}\\
+                                 & PDB file with same cluster (optional, recommended)\\[0.3cm]
+      \textbf{Output:}           & Excel reports (mode analysis, SCSD,\\
+                                 & reorganization energies, modulation spectra,\\
+                                 & UMAP clusters), REPORT (plain text), plots (PNG)\\[0.3cm]
+      \textbf{External packages:} & \texttt{numpy}, \texttt{scipy}, \texttt{pandas},\\
+                                 & \texttt{matplotlib}, \texttt{openpyxl},\\
+                                 & \texttt{scikit-learn}, \texttt{umap-learn},\\
+                                 & \texttt{hdbscan}, \texttt{scsdpy}\\[0.3cm]
+      \textbf{References:}       & Marcus, \emph{J.\ Chem.\ Phys.} \textbf{24}, 966 (1956)\\
+                                 & Marcus, \emph{Angew.\ Chem.\ Int.\ Ed.\ Engl.} \textbf{32}, 1111 (1993)\\
+                                 & Hammes-Schiffer \& Soudackov,\\
+                                 & \emph{J.\ Phys.\ Chem.\ B} \textbf{112}, 14108 (2008)\\
+                                 & Huang \& Rhys,\\
+                                 & \emph{Proc.\ R.\ Soc.\ Lond.\ A} \textbf{204}, 406 (1950)\\
+                                 & Kingsbury \& Senge, \emph{Chem.\ Sci.} \textbf{15}, 13638 (2024)\\[0.3cm]
+      \textbf{License:}          & GNU General Public License v3.0 or later\\
+                                 & (\texttt{GPL-3.0-or-later}, see \texttt{LICENSE})\\[0.3cm]
+      \textbf{Copyright:}        & \textcopyright\ 2026 Lukas Knauer,\\
+                                 & AG Sch\"unemann, RPTU Kaiserslautern-Landau
+    \end{tabular}
+
+    \vfill
+    {\large \today}
+  \end{center}
+\end{titlepage}
+
+\tableofcontents
+\clearpage
+
+% =========================================================================
+\section{Introduction}
+% =========================================================================
+
+\texttt{modenanalyse\_2fe2s} is a Python package for mode-resolved
+bonding reorganization analysis of [2Fe-2S] iron-sulfur clusters from
+DFT frequency calculations. For each vibrational mode and each
+relevant bonding channel, it computes thermally scaled bond
+modulations $\Delta r_X$ and the associated Marcus-Hush
+reorganization contributions $\lambda_X$ in a form directly
+comparable to spectroscopic observables (NRVS, NIS).
+
+\subsection{What the tool does}
+
+The pipeline takes a Gaussian-16 \texttt{.log} or ORCA-6 \texttt{.hess}
+frequency calculation of a [2Fe-2S]-containing protein region (and
+optionally a PDB file for ligand identification) and produces:
+
+\begin{itemize}
+  \item \textbf{Per-mode analysis}: Eigenvector-based classification
+    of all normal modes into in-plane / out-of-plane / torsional
+    based on the cluster plane.
+  \item \textbf{Reorganization energies} per bonding channel
+    $X \in \{\text{Fe-Fe}, \text{Fe-S}, \text{Fe-N}, \text{N-H},
+    \text{H-acceptor}\}$ and per mode, both as system totals and
+    per-bond resolved.
+  \item \textbf{Frequency-resolved modulation spectra} $M_X(\omega)$
+    suitable for direct comparison with NRVS / NIS measurements.
+  \item \textbf{Cumulative reorganization} $\Lambda_X(\omega)$ for
+    identifying which spectral regions dominate.
+  \item \textbf{SCSD symmetry-coordinate decomposition} of the
+    cluster core into $D_{2h}$ irreps (after Kingsbury \& Senge,
+    2024).
+  \item \textbf{UMAP embeddings} of the 31-feature mode space with
+    HDBSCAN clustering for mode-landscape exploration.
+  \item \textbf{Multi-cluster support}: dimers and multi-[2Fe-2S]
+    systems are handled as a first-class feature.
+\end{itemize}
+
+\subsection{Target users}
+
+The intended users are researchers in biophysical chemistry,
+bioinorganic chemistry, and quantum chemistry who study iron-sulfur
+proteins. Typical applications include:
+
+\begin{itemize}
+  \item NRVS band assignment in Rieske-type proteins, mitoNEET, and
+    ferredoxins.
+  \item Comparative reorganization-energy studies between mutants
+    or oxidation states.
+  \item Identification of vibrational modes relevant to PCET.
+  \item Validation of QM/MM models against vibrational data.
+\end{itemize}
+
+\subsection{Scope and limitations}
+
+The tool assumes a single [2Fe-2S] cluster (or multiple, with
+\texttt{analyze\_all\_clusters=True}) per input system. It does not
+currently handle [4Fe-4S], [3Fe-4S], or larger iron-sulfur
+clusters --- these would require different cluster-detection logic
+and different SCSD reference geometries.
+
+The reorganization formalism is local-mode based: each individual
+bond is treated independently via the Marcus-Hush expression
+$\lambda = \tfrac{1}{2}\mu\omega^2 (\Delta r)^2$. Couplings between
+bonding channels are not currently included beyond what is implicit
+in the DFT normal modes themselves.
+
+% =========================================================================
+\section{Theoretical Background}
+% =========================================================================
+
+\subsection{The Marcus-Hush reorganization energy}
+
+In Marcus electron-transfer theory, the reorganization energy
+$\lambda$ measures the energy cost of distorting the equilibrium
+geometry of one electronic state to match the equilibrium geometry of
+another. For inner-sphere reorganization in a single bond at
+frequency $\omega$ with reduced mass $\mu$ and bond-length change
+$\Delta r$, the harmonic approximation gives
+
+\begin{equation}
+\lambda = \tfrac{1}{2}\, \mu\, \omega^2\, (\Delta r)^2 .
+\label{eq:marcus-bond}
+\end{equation}
+
+For a multi-mode system, the total reorganization is the sum of
+contributions from individual normal modes:
+
+\begin{equation}
+\Lambda_X = \sum_i \lambda_X(i),
+\label{eq:lambda-total}
+\end{equation}
+
+where the sum runs over normal modes $i$ and $X$ is a bonding channel
+(Fe-Fe, Fe-N, etc.). This is the central observable produced by this
+tool, written to the \texttt{Reorg\_total} sheet.
+
+\subsection{Thermal scaling of eigenvectors}
+
+DFT normal modes are normalized; to convert into physical
+displacements, we use the quantum-mechanical RMS amplitude of a
+harmonic oscillator at temperature $T$:
+
+\begin{equation}
+u_\text{rms}^2 = \frac{\hbar}{2 m \omega} \coth\!\left(\frac{\hbar \omega}{2 k_B T}\right) ,
+\label{eq:urms}
+\end{equation}
+
+where $m$ is the mode reduced mass and $\omega = 2\pi c \tilde\nu$
+in SI units. At $T \to 0$, $\coth \to 1$ and $u_\text{rms}^2 \to
+\hbar/(2 m \omega)$ (the zero-point amplitude). At high temperature,
+$\coth \to 1/x$ and $u_\text{rms}^2 \to k_B T / (m \omega^2)$
+(classical equipartition).
+
+For NRVS measurements, $T = 5$~K is the standard low-temperature
+condition; $T = 80$~K is also common. Room temperature (300~K) is
+relevant only for room-temperature kinetics studies.
+
+\subsection{Bond-channel modulation $\Delta r_X$}
+
+For each mode $i$ and each bond $X = (a, b)$, the bond-length
+modulation is computed from the thermally scaled atomic
+displacements $\bm{e}_a, \bm{e}_b$:
+
+\begin{equation}
+\Delta r_X(i) = (\bm{e}_a - \bm{e}_b) \cdot \hat{r}_{ab} ,
+\label{eq:dr}
+\end{equation}
+
+where $\hat{r}_{ab}$ is the unit vector along the equilibrium
+bond. This is a signed scalar (positive = bond stretching, negative
+= bond compression).
+
+For multiple sub-channels (e.g., FeN with two His ligands), the
+per-channel reorganization sums over sub-channels:
+
+\begin{equation}
+\lambda_X(i) = \tfrac{1}{2}\, \mu\, \omega_i^2\, \sum_k w_k\, [\Delta r_{X,k}(i)]^2 ,
+\end{equation}
+
+with weights $w_k$ accounting for symmetry-equivalent sub-channels
+(e.g., two equivalent His ligands each contributing $w = 1/2$).
+
+\subsection{Hydrogen-bond reaction coordinate (PCET)}
+
+For the H-acceptor (HA) channel relevant to PCET, the relevant
+coordinate is not a single bond length but the projection of the
+hydrogen displacement relative to the donor onto the donor-acceptor
+axis:
+
+\begin{equation}
+\Delta r_\text{HA}(i) = (\bm{e}_H - \bm{e}_\text{donor}) \cdot \hat{r}_\text{donor-acceptor} .
+\label{eq:dr-pcet}
+\end{equation}
+
+This captures the actual proton-transfer reaction coordinate. A
+nonzero $\Lambda_\text{HA}$ indicates PCET capability of the system.
+
+\subsection{Asymptotic limit at $T \to 0$}
+
+In the zero-temperature limit, eq.~\eqref{eq:urms} gives
+$u_\text{rms} = \sqrt{\hbar/(2 m \omega)}$, and
+eq.~\eqref{eq:marcus-bond} becomes
+
+\begin{equation}
+\lambda_X(T \to 0) = \frac{\hbar \omega}{4} \cdot \alpha_X^2 ,
+\label{eq:lambda-T0}
+\end{equation}
+
+where $\alpha_X = \Delta r_X / u_\text{rms}$ is the dimensionless
+mode-bond coupling. For a single atom moving along the bond axis with
+amplitude $\alpha = 1$, this simplifies to $\lambda = \omega/4$ (in
+$\hbar\omega$ units, so $\omega/4$ in cm$^{-1}$ when frequency is in
+cm$^{-1}$). This is the Huang-Rhys form of vibronic coupling and is
+the asymptotic check the implementation passes.
+
+\subsection{Choice of reduced mass}
+
+Two conventions are produced:
+
+\begin{itemize}
+  \item \textbf{Pair-reduced mass} $\mu_\text{pair} = m_a m_b / (m_a + m_b)$:
+    treats each bond as an isolated diatomic. Useful for direct
+    interpretation of bond-vibrational energies.
+  \item \textbf{Mode-reduced mass} $\mu_\text{mode}$: the full DFT
+    normal-mode reduced mass, which incorporates couplings to other
+    atoms. Produced as \texttt{Lambda\_total\_mode\_cm1} in the
+    output. \emph{This is the recommended quantity for Marcus-Hush
+    comparisons across systems}, as it correctly includes the inertia
+    of the actual collective motion.
+\end{itemize}
+
+The two conventions agree when the mode is a pure local bond
+vibration; they differ when the mode is delocalized across multiple
+bonds.
+
+\subsection{D$_{2h}$ symmetry-coordinate decomposition (SCSD)}
+
+The cluster core (4 atoms: 2 Fe + 2 S) has approximate $D_{2h}$
+symmetry: the 12 atomic Cartesian degrees of freedom decompose as
+
+\begin{equation}
+\Gamma_\text{core} = A_g \oplus B_{1g} \oplus B_{2g} \oplus B_{3g}
+                   \oplus A_u \oplus B_{1u} \oplus B_{2u} \oplus B_{3u}
+                   \oplus 4 \, T_\text{trans+rot} .
+\end{equation}
+
+The SCSD method (Kingsbury \& Senge, 2024) projects the actual
+displacement of the cluster core onto a canonical $D_{2h}$ reference
+geometry (Fe-Fe = 2.73~\AA, Fe-S = 2.20~\AA, taken as means from
+high-resolution Rieske/ferredoxin crystal structures), with axis
+convention $x = $ Fe-Fe direction, $y = $ S-S direction,
+$z = $ cluster normal. The decomposition is orthogonal in $D_{2h}$
+irreps; values are directly comparable between different structures
+and oxidation states.
+
+% =========================================================================
+\section{Installation and First Run}
+% =========================================================================
+
+\subsection{Installation}
+
+The package ships as a Python wheel:
+
+\begin{lstlisting}
+pip install modenanalyse_2fe2s-1.0.0-py3-none-any.whl
+\end{lstlisting}
+
+Dependencies are pulled in automatically (numpy, scipy, pandas,
+matplotlib, openpyxl, scikit-learn, umap-learn, hdbscan, scsdpy).
+
+Verify installation:
+
+\begin{lstlisting}
+modenanalyse-2fe2s --help
+\end{lstlisting}
+
+\subsection{Quick test}
+
+The package ships with a small test [2Fe-2S] cluster:
+
+\begin{lstlisting}
+from modenanalyse_2fe2s import Config, run_analysis
+
+cfg = Config(
+    log_file   = "tests/data/Cys_2Fe-2S_red3_hpfrq_opt.log.xz",
+    output_dir = "./quickstart_results",
+    temp_k     = 5.0,
+    freq_max   = 800.0,
+)
+run_analysis(cfg)
+\end{lstlisting}
+
+This takes about 1 minute and produces the full output set.
+
+\subsection{Recommended TOML-based workflow}
+
+For reproducibility, prefer TOML configuration files:
+
+\begin{lstlisting}
+modenanalyse-2fe2s --write-template my_run.toml
+# edit my_run.toml as needed
+modenanalyse-2fe2s --config my_run.toml
+\end{lstlisting}
+
+The TOML file documents itself and is git-friendly.
+
+% =========================================================================
+\section{Configuration Reference}
+% =========================================================================
+
+The \texttt{Config} dataclass has 48 fields. Most have sensible
+defaults; only \texttt{log\_file} and \texttt{output\_dir} are
+required.
+
+\subsection{Required fields}
+
+\begin{itemize}
+  \item \texttt{log\_file}: path to Gaussian-16 \texttt{.log} (with
+    \texttt{freq=hpmodes}) or ORCA-6 \texttt{.hess}.
+  \item \texttt{output\_dir}: target directory; created if absent.
+\end{itemize}
+
+\subsection{Geometry input}
+
+\begin{itemize}
+  \item \texttt{pdb\_file} (optional): for ligand-residue
+    identification via Kabsch-aligned matching to the QM cluster.
+  \item \texttt{pdb\_chain}: chain identifier (default \texttt{"A"};
+    empty string \texttt{""} = all chains).
+\end{itemize}
+
+\subsection{Frequency window}
+
+\begin{itemize}
+  \item \texttt{freq\_min}, \texttt{freq\_max}: frequency filter in
+    cm$^{-1}$. Defaults: \texttt{None} (no limit) and 800.0 (NRVS
+    measurement window).
+  \item \texttt{freq\_windows}: list of \texttt{(low, high)} tuples
+    for multi-window analysis. Each window gets its own subfolder;
+    a top-level overall analysis is also produced.
+\end{itemize}
+
+\subsection{Temperature}
+
+\begin{itemize}
+  \item \texttt{temp\_k}: sample temperature in Kelvin. Standard
+    values: 5 K (cryogenic NRVS), 40 K (helium standard),
+    80 K (liquid nitrogen), 300 K (room temperature). Default: 80.
+\end{itemize}
+
+\subsection{Cluster selection}
+
+\begin{itemize}
+  \item \texttt{cluster\_index}: 0-based index of the cluster to
+    analyze (default 0 = closest Fe-Fe pair). Ignored when
+    \texttt{analyze\_all\_clusters=True}.
+  \item \texttt{analyze\_all\_clusters}: \texttt{True} to analyze
+    all detected [2Fe-2S] clusters, each in its own
+    \texttt{cluster\_N/} subfolder, with a top-level
+    \texttt{multi\_cluster\_summary.txt}.
+\end{itemize}
+
+\subsection{Module selection}
+
+\begin{itemize}
+  \item \texttt{analyze\_scsd}: enable SCSD $D_{2h}$ decomposition
+    (default \texttt{True}).
+  \item \texttt{pcet\_enabled}: enable PCET reorganization pipeline
+    (default \texttt{True}).
+\end{itemize}
+
+\subsection{Numerical parameters}
+
+\begin{itemize}
+  \item \texttt{sigma\_eigvec}: noise amplitude added to eigenvectors
+    for sensitivity analysis (default $5 \times 10^{-4}$).
+  \item \texttt{sigma\_coord}: noise amplitude added to atomic
+    coordinates (default $1 \times 10^{-3}$).
+  \item \texttt{interp\_step}: grid spacing for interpolated spectra
+    in cm$^{-1}$ (default 0.05).
+  \item \texttt{interp\_boundary\_mode}: \texttt{"context"},
+    \texttt{"zero"}, or \texttt{"nearest"} (default
+    \texttt{"context"}).
+  \item \texttt{amplitude}: fallback amplitude in classical mode
+    (\texttt{temp\_k=None}); default 1.0.
+\end{itemize}
+
+\subsection{PCET geometry}
+
+\begin{itemize}
+  \item \texttt{pcet\_acceptor\_r0\_a}: H-bond acceptor reference
+    distance (default 2.8~\AA).
+  \item \texttt{pcet\_acceptor\_sigma\_a}: weighting sigma
+    (default 0.4~\AA).
+  \item \texttt{pcet\_hbond\_cutoff\_a}: maximum H-acceptor distance
+    for inclusion (default 3.5~\AA).
+\end{itemize}
+
+\subsection{Output controls}
+
+\begin{itemize}
+  \item \texttt{include\_hydrogen}: include H atoms in mode analysis
+    (default \texttt{True}).
+  \item \texttt{use\_cache}: speed up repeated runs on the same log
+    file via byte-offset cache (default \texttt{True}).
+\end{itemize}
+
+% =========================================================================
+\section{Output Files Reference}
+% =========================================================================
+
+\subsection{REPORT.txt}
+
+Human-readable summary, written as \texttt{<basename>\_REPORT.txt}.
+Sections (in order): CONFIGURATION, INSTALLED MODULES, GEOMETRY,
+COORDINATING AMINO ACIDS, MODE ANALYSIS, MODE DISTRIBUTION,
+CLUSTER ANALYSIS, FAILED MODES, WARNINGS, ERRORS, NOTES, OUTPUT FILES.
+
+The NOTES section is the densest with information --- it includes
+the headline reorganization values, the SCSD methodology citation,
+HP/standard consistency check, and analysis statistics.
+
+\subsection{Main analysis workbook}
+
+Written as \texttt{<basename>\_analysis.xlsx}, with 11 sheets:
+
+\begin{tabular}{ll}
+  \toprule
+  \textbf{Sheet} & \textbf{Content} \\
+  \midrule
+  \texttt{Mode\_analysis}         & Per-mode summary (one row per mode) \\
+  \texttt{Core\_scores}           & Cluster-core mode scores \\
+  \texttt{Equilibrium\_distances} & Fe-Fe, Fe-S, Fe-N, etc. distances \\
+  \texttt{SCSD}                   & $D_{2h}$ symmetry decomposition \\
+  \texttt{Reorganization\_energy} & Per-mode $\lambda_X(i)$ and $\Delta r_X(i)$ \\
+  \texttt{Reorg\_total}           & System totals $\Lambda_X$ \\
+  \texttt{Reorg\_per\_bond}       & Per-bond contributions \\
+  \texttt{Modulation\_spectra}    & $M_X(\omega)$ \\
+  \texttt{Lambda\_cumulative}     & $\Lambda_X(\omega)$ \\
+  \texttt{B\_factors}             & Debye-Waller B-factors \\
+  \texttt{Info}                   & Run metadata \\
+  \bottomrule
+\end{tabular}
+
+\subsubsection{Mode\_analysis}
+
+One row per analyzed mode. Columns:
+
+\begin{itemize}
+  \item \texttt{Mode\#}, \texttt{Frequency} (cm$^{-1}$),
+    \texttt{u\_rms} (\AA), \texttt{Red.mass} (AMU),
+    \texttt{Frc.const.} (mDyn/\AA): from DFT.
+  \item \texttt{Sym.}: irrep label.
+  \item \texttt{Type}: classification (\texttt{In-plane},
+    \texttt{Out-of-plane}, \texttt{Torsional/Mixed}).
+  \item \texttt{Type (fine)}: 7-level classification (\texttt{Pure
+    OOP}, \texttt{Strong OOP}, \texttt{Majority OOP},
+    \texttt{Mixed}, \texttt{Majority INP}, \texttt{Strong INP},
+    \texttt{Pure INP}).
+  \item \texttt{Prec.}: precision (\texttt{high} for HP eigenvector
+    blocks, \texttt{standard} otherwise).
+  \item Ring-2 / Ring-3 / Ring-1 columns: percentages of mode amplitude
+    on ligand atoms / secondary sphere / cluster core.
+  \item \texttt{Lambda\_FeFe}, \texttt{Lambda\_NH},
+    \texttt{Lambda\_HA} (cm$^{-1}$): per-mode reorganization
+    contributions for the three most informative channels.
+\end{itemize}
+
+\subsubsection{Reorg\_total --- the headline numbers}
+
+Five rows, one per channel:
+
+\begin{tabular}{llll}
+  \toprule
+  \textbf{Channel} & \textbf{$\Lambda$\_pair (cm$^{-1}$)} & \textbf{$\Lambda$\_mode (cm$^{-1}$)} & \textbf{n\_modes} \\
+  \midrule
+  FeFe & ... & ... & ... \\
+  FeN  & ... & ... & ... \\
+  FeS  & ... & ... & ... \\
+  NH   & ... & ... & ... \\
+  HA   & ... & ... & ... \\
+  \bottomrule
+\end{tabular}
+
+Use \texttt{Lambda\_total\_mode\_cm1} for cross-system comparisons.
+A non-zero $\Lambda_\text{HA}$ indicates PCET capability.
+
+\subsubsection{Reorganization\_energy --- per-mode breakdown}
+
+One row per mode, one column block per channel. For each channel
+$X$:
+
+\begin{itemize}
+  \item \texttt{dr\_X\_rss\_a}: root-sum-of-squares of bond
+    modulations across sub-channels (signed sum is also available
+    as \texttt{dr\_X\_sum\_signed\_a}).
+  \item \texttt{lambda\_X\_pair\_cm1}: $\lambda$ with pair-reduced
+    mass.
+  \item \texttt{lambda\_X\_mode\_cm1}: $\lambda$ with
+    mode-reduced mass.
+\end{itemize}
+
+\subsubsection{Modulation\_spectra}
+
+Frequency-resolved $M_X(\omega) = \sum_i \delta(\omega - \omega_i)
+\cdot |\Delta r_X(i)|^2$ broadened with a Gaussian. Useful for
+direct visual comparison with NRVS spectra.
+
+\subsubsection{Lambda\_cumulative}
+
+$\Lambda_X(\omega) = \sum_{i: \omega_i \le \omega} \lambda_X(i)$.
+Plotted versus $\omega$, this shows which spectral regions
+contribute most to the total reorganization.
+
+\subsection{Embeddings workbook}
+
+\texttt{<basename>\_analysis\_Embeddings.xlsx}: PCA, UMAP, and t-SNE
+projections of the 31-feature mode space, with HDBSCAN cluster
+labels and per-cluster characterization (Z-scores, Fisher F).
+
+\subsection{Plots}
+
+\texttt{<basename>\_embedding\_UMAP.png}: 2D projection of all modes,
+left panel colored by frequency, right panel colored by mode type.
+
+% =========================================================================
+\section{Multi-Cluster Workflow}
+% =========================================================================
+
+For dimers (e.g., glutaredoxin) and multi-domain systems with multiple
+[2Fe-2S] clusters, set \texttt{analyze\_all\_clusters=True}:
+
+\begin{lstlisting}
+cfg = Config(
+    log_file   = "dimer.hess",
+    pdb_file   = "dimer.pdb",
+    output_dir = "./results_dimer",
+    analyze_all_clusters = True,
+    temp_k = 5.0,
+)
+run_analysis(cfg)
+\end{lstlisting}
+
+The pipeline:
+
+\begin{enumerate}
+  \item Detects all [2Fe-2S] clusters in the input.
+  \item For each cluster, runs the full analysis in a separate
+    \texttt{cluster\_N/} subfolder, with cluster-specific Fe-Fe and
+    Fe-S identification.
+  \item Writes a top-level \texttt{multi\_cluster\_summary.txt} with
+    geometry and run status per cluster.
+\end{enumerate}
+
+\subsubsection*{Multi-cluster Kabsch alignment}
+
+For multi-cluster systems, the Kabsch alignment of QM coordinates to
+PDB requires care: with $>$2 Fe atoms in the PDB, the algorithm
+chooses the Fe pair whose Fe-Fe distance is closest to the QM
+Fe-Fe distance \emph{and} is below 4~\AA{} (cluster-internal
+distance). This avoids accidental cross-cluster alignment that
+would otherwise produce silently wrong ligand assignments.
+
+\subsubsection*{Single-cluster fallback}
+
+For single-cluster systems, \texttt{analyze\_all\_clusters=True}
+falls back automatically to single-cluster mode (no subfolders).
+
+% =========================================================================
+\section{Validation}
+% =========================================================================
+
+The implementation has been validated against:
+
+\subsection{Numerical formula verification}
+
+All core formulas were independently re-implemented and checked to
+six decimal places:
+
+\begin{itemize}
+  \item Eq.~\eqref{eq:urms} (thermal amplitude): zero-point limit
+    matches at $T \to 0$, classical limit converges at $T \to \infty$.
+  \item Eq.~\eqref{eq:marcus-bond} (Marcus-Hush): $T \to 0$ with
+    $\alpha = 1$ gives $\lambda = \omega/4$ exactly.
+  \item Eq.~\eqref{eq:lambda-T0} (low-T asymptotic): consistency
+    check verified at multiple frequencies and reduced masses.
+  \item Kabsch SVD: standard reflection-corrected variant, verified
+    against a known reference.
+\end{itemize}
+
+\subsection{Test system: mitoNEET-H87C}
+
+Validated against a QM/MM Hessian of mitoNEET-H87C
+(Cys$_4$ ligation, 422 atoms, 1266 modes after filter,
+11 UMAP clusters):
+
+\begin{tabular}{ll}
+  \toprule
+  \textbf{Quantity} & \textbf{Value} \\
+  \midrule
+  $\Lambda_\text{FeFe}$ (mode) & $\approx 29$~cm$^{-1}$ \\
+  $\Lambda_\text{FeS}$ (mode)  & $\approx 338$~cm$^{-1}$ \\
+  $\Lambda_\text{FeN}$ (mode)  & 0 \\
+  $\Lambda_\text{NH}$ (mode)   & 0 \\
+  $\Lambda_\text{HA}$ (mode)   & 0 \\
+  Cluster Fe-Fe distance       & 2.78~\AA \\
+  Fe-S (mean)                  & 2.26~\AA \\
+  Fe-S-Fe (mean)               & 75.9$^\circ$ \\
+  Folding residual             & 0.053~\AA \\
+  \bottomrule
+\end{tabular}
+
+The H87C mutation removes the only His ligand, so $\Lambda_\text{NH}$
+and $\Lambda_\text{HA}$ are both zero --- as expected. The
+near-equality $\Lambda_\text{FeN} = 0$ is a consistency check.
+
+\subsection{Edge cases tested}
+
+\begin{itemize}
+  \item Empty atom list, all-Fe (no S), single Fe pair, multi-cluster
+    dimer (4 Fe + 4 S), 3 Fe with no S --- all handled correctly.
+  \item Degenerate cluster geometries (collinear atoms): protected
+    against division by zero with safety checks.
+  \item Multi-cluster Kabsch with 4 PDB Fe atoms: verified to choose
+    the correct intra-cluster pair.
+\end{itemize}
+
+\subsection{Test suite}
+
+The package includes 92+ tests:
+
+\begin{itemize}
+  \item 88+ unit tests covering geometry, reorganization formulas,
+    Kabsch alignment, classification logic, multi-cluster wrapper.
+  \item 4 end-to-end smoke tests that run a complete analysis on a
+    test [2Fe-2S] cluster and verify the output structure and key
+    numerical values.
+\end{itemize}
+
+Run with:
+
+\begin{lstlisting}
+pytest tests/                  # ~5 sec
+pytest tests/ -m slow          # ~70 sec, full pipeline
+\end{lstlisting}
+
+% =========================================================================
+\section{Troubleshooting}
+% =========================================================================
+
+\subsection*{``No [2Fe-2S] cluster found''}
+
+Check that the input contains atomic coordinates. For Gaussian
+\texttt{.log}, the file must have a Standard orientation block. For
+ORCA \texttt{.hess}, the \texttt{\$atoms} block must be present and
+non-empty.
+
+If the cluster has unusually large Fe-Fe (>3.5~\AA) or Fe-S
+(>2.7~\AA) distances, increase the cutoffs:
+
+\begin{lstlisting}
+cfg = Config(..., fe_fe_cutoff=4.0, fe_s_cutoff=3.0)
+\end{lstlisting}
+
+\subsection*{``Kabsch alignment failed''}
+
+Common causes:
+
+\begin{itemize}
+  \item Wrong chain identifier. Default is \texttt{"A"}; if your PDB
+    uses a different chain, set \texttt{pdb\_chain="X"} or
+    \texttt{pdb\_chain=""} (all chains).
+  \item PDB has fewer than 2 Fe or 2 S atoms.
+  \item PDB and QM coordinates are in completely different reference
+    frames and the Fe-Fe distance differs by more than the algorithm
+    can tolerate.
+\end{itemize}
+
+The REPORT shows the Kabsch RMSD; values $<$ 0.1~\AA{} indicate a
+good alignment.
+
+\subsection*{``$\Lambda_\text{NH}$ and $\Lambda_\text{HA}$ are zero
+on a Rieske protein''}
+
+Check:
+
+\begin{enumerate}
+  \item PDB has the His ligands present.
+  \item PDB is correctly aligned to the QM region (Kabsch RMSD in
+    REPORT).
+  \item \texttt{pcet\_enabled=True} (the default).
+  \item The His residues' protonation: the tool checks for H on the
+    ring nitrogen.
+\end{enumerate}
+
+If His ligands are present but \texttt{Lambda\_HA} is zero, the
+WARNINGS section will indicate that no H-bond acceptors were found
+within the cutoff distance --- typically meaning no nearby protein
+groups can act as proton acceptor.
+
+\subsection*{``openpyxl missing''}
+
+\texttt{pip install openpyxl}. Required for Excel output. Pinned in
+the package dependencies but may need refresh after Python upgrades.
+
+\subsection*{Slow runs on large systems}
+
+For systems with $>$1500 modes, the per-mode analysis is the
+bottleneck. The bottleneck scales linearly with $N_\text{modes}$. A
+typical 422-atom system with 1266 modes runs in $\approx$5 minutes
+on modern hardware. Use \texttt{use\_cache=True} (default) to speed
+up repeated runs on the same input.
+
+% =========================================================================
+\section{Citation and License}
+% =========================================================================
+
+\subsection{License}
+
+\texttt{modenanalyse\_2fe2s} is licensed under the GNU General Public
+License v3.0 or later (GPL-3.0-or-later). See \texttt{LICENSE} for
+the full text.
+
+The dependencies have their own licenses; users who redistribute the
+package should consult the dependency manifest for license
+compatibility.
+
+\subsection{Citation}
+
+If you use \texttt{modenanalyse\_2fe2s} in a publication, please
+cite as in \texttt{CITATION.cff}. After Zenodo upload, the package
+will have a permanent DOI:
+
+\begin{lstlisting}
+Knauer, L. (2026). modenanalyse_2fe2s: Mode-resolved bonding
+reorganization analysis for [2Fe-2S] iron-sulfur clusters from DFT
+frequency calculations (Version 1.0.0) [Software].
+DOI: <to be assigned upon first GitHub release>
+\end{lstlisting}
+
+\subsection{Scientific references}
+
+The implementation rests on the following methodological literature:
+
+\begin{itemize}
+  \item Marcus, R.~A. \emph{J.\ Chem.\ Phys.} \textbf{24}, 966
+    (1956) --- foundation of electron-transfer theory.
+  \item Marcus, R.~A. \emph{Angew.\ Chem.\ Int.\ Ed.\ Engl.}
+    \textbf{32}, 1111 (1993) --- Nobel-lecture review.
+  \item Hammes-Schiffer, S.\ \& Soudackov, A.~V.
+    \emph{J.\ Phys.\ Chem.\ B} \textbf{112}, 14108 (2008) ---
+    PCET formalism.
+  \item Huang, K.\ \& Rhys, A. \emph{Proc.\ R.\ Soc.\ Lond.\ A}
+    \textbf{204}, 406 (1950) --- vibronic coupling foundations.
+  \item Kingsbury, C.~J.\ \& Senge, M.~O. \emph{Chem.\ Sci.}
+    \textbf{15}, 13638 (2024) --- SCSD methodology.
+  \item Gee, L.~B., Pelmenschikov, V., Mons, C.\ \emph{et al.}
+    \emph{Biochemistry} \textbf{60}, 2419 (2021) --- mitoNEET NRVS.
+\end{itemize}
+
+\end{document}

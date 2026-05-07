@@ -1,0 +1,39 @@
+# Example configuration: multi-cluster analysis
+#
+# Sets analyze_all_clusters = true. The tool runs once per detected
+# [2Fe-2S] cluster automatically and creates a subfolder per
+# cluster. For single-cluster systems the flag has no effect.
+#
+# Usage:
+#   modenanalyse-2fe2s multi_cluster_template.toml
+#
+# Output structure (example with two clusters):
+#   ./results/cluster_0/0-800_cm-1/...
+#   ./results/cluster_1/0-800_cm-1/...
+#   ./results/multi_cluster_summary.txt
+
+[input]
+log_file   = "dimer.log"            # frequency log file (Gauss .log or ORCA .hess)
+pdb_file   = "dimer.pdb"            # optional, for ligands + SS
+output_dir = "./results"             # base folder; one subfolder per cluster
+pdb_chain  = ""                      # chain filter (empty = all chains)
+
+[freq]
+freq_min = 0.0
+freq_max = 800.0                    # NRVS range
+
+[thermo]
+temp_k     = 5.0                    # low-temperature NRVS
+amplitude  = 1.0
+
+[cluster]
+fe_fe_cutoff         = 3.5
+fe_s_cutoff          = 3.0
+analyze_all_clusters = true         # <- multi-cluster mode active
+# cluster_index is ignored when analyze_all_clusters = true
+
+[scsd]
+analyze_scsd = true
+
+[pcet]
+pcet_enabled = true

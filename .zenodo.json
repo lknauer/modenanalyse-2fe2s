@@ -1,0 +1,47 @@
+{
+  "title": "modenanalyse_2fe2s: Mode-resolved bonding reorganization analysis for [2Fe-2S] iron-sulfur clusters from DFT frequency calculations",
+  "description": "<p>Python program for mode-resolved bonding reorganization analysis of [2Fe-2S] iron-sulfur clusters from Gaussian-16 or ORCA-6 frequency calculations. For each vibrational mode and each bonding channel (Fe-Fe, Fe-N, Fe-S, N-H, H&hellip;acceptor), computes thermally scaled bond modulations &Delta;r<sub>X</sub> and the associated reorganization contributions &lambda;<sub>X</sub> = &frac12; &mu; &omega;<sup>2</sup> (&Delta;r<sub>X</sub>)<sup>2</sup> in Marcus-Hush form, with a special reaction-coordinate mode for hydrogen bonds (PCET-relevant).</p><p>Produces frequency-resolved spectra M<sub>X</sub>(&omega;) and cumulative &Lambda;<sub>X</sub>(&omega;), a D<sub>2h</sub> symmetry-coordinate decomposition (Kingsbury &amp; Senge), plus UMAP embedding with HDBSCAN clustering of the mode feature matrix.</p><p>Main application: NRVS band identification and system comparisons for Rieske-type proteins and mitoNEET. Multi-cluster systems (dimers, multi-domain constructs) are supported as a first-class feature.</p><p><strong>Validation:</strong> Tested against mitoNEET-H87C QM/MM Hessian (Cys<sub>4</sub> ligation, 422 atoms, 1266 modes, 11 UMAP clusters) with characteristic reorganization values &Lambda;<sub>FeFe</sub> &asymp; 29 cm<sup>-1</sup>, &Lambda;<sub>FeS</sub> &asymp; 338 cm<sup>-1</sup>.</p>",
+  "creators": [
+    {
+      "name": "Knauer, Lukas",
+      "affiliation": "AG Sch\u00fcnemann, Department of Physics, RPTU Kaiserslautern-Landau"
+    }
+  ],
+  "version": "1.0.0",
+  "publication_date": "2026-05-07",
+  "license": "GPL-3.0-or-later",
+  "upload_type": "software",
+  "access_right": "open",
+  "keywords": [
+    "quantum chemistry",
+    "normal mode analysis",
+    "iron-sulfur cluster",
+    "[2Fe-2S]",
+    "Rieske protein",
+    "mitoNEET",
+    "PCET",
+    "proton-coupled electron transfer",
+    "NRVS",
+    "nuclear resonance vibrational spectroscopy",
+    "Gaussian",
+    "ORCA",
+    "reorganization energy",
+    "Marcus-Hush",
+    "biophysical chemistry",
+    "vibrational spectroscopy",
+    "DFT",
+    "bioinorganic chemistry"
+  ],
+  "communities": [
+    {"identifier": "biophysics"}
+  ],
+  "language": "eng",
+  "references": [
+    "Marcus RA. On the theory of oxidation-reduction reactions involving electron transfer. I. J. Chem. Phys. 24, 966 (1956). DOI: 10.1063/1.1742723",
+    "Marcus RA. Electron transfer reactions in chemistry. Theory and experiment. Angew. Chem. Int. Ed. Engl. 32, 1111 (1993). DOI: 10.1002/anie.199311113",
+    "Hammes-Schiffer S, Soudackov AV. Proton-coupled electron transfer in solution, proteins, and electrochemistry. J. Phys. Chem. B 112, 14108 (2008). DOI: 10.1021/jp805876e",
+    "Huang K, Rhys A. Theory of light absorption and non-radiative transitions in F-centres. Proc. R. Soc. Lond. A 204, 406 (1950).",
+    "Kingsbury CJ, Senge MO. Symmetry-coordinate structural decomposition for [2Fe-2S] clusters. Chem. Sci. 15, 13638 (2024).",
+    "Gee LB, Pelmenschikov V, Mons C, Mishra N, Wang H, Yoda Y, Tamasaku K, Golinelli-Cohen MP, Cramer SP. Vibrational characterization of mitoNEET. Biochemistry 60, 2419-2424 (2021)."
+  ]
+}

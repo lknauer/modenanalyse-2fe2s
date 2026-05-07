@@ -1,0 +1,91 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name        = "modenanalyse_2fe2s"
+version     = "1.0.0"
+description = "Mode-resolved bonding reorganization analysis for [2Fe-2S] iron-sulfur clusters from Gaussian-16 and ORCA-6 frequency calculations"
+readme      = "README.md"
+requires-python = ">=3.11"  # tomllib (config.from_toml)
+authors = [
+    { name = "Lukas Knauer" },
+]
+maintainers = [
+    { name = "Lukas Knauer" },
+]
+license = { text = "GPL-3.0-or-later" }
+keywords = [
+    "quantum-chemistry",
+    "normal-mode-analysis",
+    "iron-sulfur-cluster",
+    "2Fe-2S",
+    "Rieske-protein",
+    "mitoNEET",
+    "PCET",
+    "proton-coupled-electron-transfer",
+    "NRVS",
+    "nuclear-resonance-vibrational-spectroscopy",
+    "reorganization-energy",
+    "Marcus-Hush",
+    "Gaussian",
+    "ORCA",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+    "numpy>=1.23",
+    "scipy>=1.10",
+    "openpyxl>=3.1",
+    "matplotlib>=3.5",
+    "pandas>=2.0",
+    "scikit-learn>=1.2",
+    "umap-learn>=0.5",
+    "hdbscan>=0.8.33",
+    "scsdpy",
+]
+
+[project.optional-dependencies]
+# Test dependencies (for pytest in tests/)
+test = [
+    "pytest>=7.0",
+]
+
+[project.scripts]
+modenanalyse-2fe2s = "modenanalyse_2fe2s.cli:main"
+
+[project.urls]
+# Update once the GitHub repo is public:
+Homepage      = "https://github.com/lknauer/modenanalyse_2fe2s"
+Documentation = "https://github.com/lknauer/modenanalyse_2fe2s/blob/main/docs/Manual.pdf"
+Issues        = "https://github.com/lknauer/modenanalyse_2fe2s/issues"
+Source        = "https://github.com/lknauer/modenanalyse_2fe2s"
+
+[tool.setuptools.packages.find]
+where   = ["src"]
+include = ["modenanalyse_2fe2s*"]
+
+[tool.setuptools.package-data]
+modenanalyse_2fe2s = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks slow-running tests (end-to-end, ~1 min). Invoke via 'pytest -m slow'. Skipped by default.",
+]
+# By default no slow tests
+addopts = "-m 'not slow'"

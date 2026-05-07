@@ -1,0 +1,117 @@
+# =============================================================================
+# .gitignore for modenanalyse_2fe2s
+# =============================================================================
+
+# --- Python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+build/
+dist/
+wheels/
+.installed.cfg
+
+# --- Virtual environments ---------------------------------------------------
+venv/
+env/
+ENV/
+.venv/
+.env/
+
+# --- IDE / Editor ------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# --- Spyder / Jupyter --------------------------------------------------------
+.spyderproject
+.spyproject
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# --- Testing -----------------------------------------------------------------
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.cache/
+
+# --- Type checking -----------------------------------------------------------
+.mypy_cache/
+.pyre/
+.dmypy.json
+
+# --- LaTeX build artifacts ---------------------------------------------------
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.bbl
+*.blg
+*.idx
+*.ind
+*.ilg
+*.lof
+*.lot
+*.nav
+*.snm
+*.vrb
+# Keep PDF (Manual.pdf is tracked in the repo)
+# *.pdf
+
+# --- Run outputs (should NEVER land in the repo) -----------------------------
+# These are produced by the tool itself:
+*_REPORT.txt
+*_BEFUND.txt
+*_analysis.xlsx
+*_analysis_SS.xlsx
+*_analysis_Embeddings.xlsx
+*_analysis_interp*.xlsx
+*_analysis_SS_interp*.xlsx
+*_embedding_UMAP.png
+results/
+output/
+0-*_cm-1/
+100-*_cm-1/
+300-*_cm-1/
+500-*_cm-1/
+
+# --- Input data (not in repo, except tests/data) -----------------------------
+# Gaussian/ORCA log files are NOT versioned:
+*.log
+*.fchk
+*.chk
+*.rwf
+*.dat
+*.hess
+# Exception: test data in tests/data/
+!tests/data/*.log.xz
+# PDB files generally not in the repo
+*.pdb
+# Cache files
+*_cache.pkl
+*_cache.pickle
+
+# --- TOML templates filled with custom paths ---------------------------------
+# Only templates from examples/ are versioned; custom configs are not
+my_*.toml
+private_*.toml
+local_*.toml
+
+# --- Sensitive data ----------------------------------------------------------
+*.key
+*.pem
+secrets.toml
+.env.local

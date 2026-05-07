@@ -1,0 +1,153 @@
+# =============================================================================
+# modenanalyse_2fe2s -- Complete configuration reference
+# =============================================================================
+#
+# This file shows ALL 53 configuration fields with their defaults.
+# Fields with '#' at the start are commented out and use the default value.
+# Required fields are without '#' and MUST be customized:
+#   * input.log_file
+#   * input.output_dir
+#
+# Paths on Windows: forward slashes or doubled backslashes:
+#   "D:/data/system.log"   or   "D:\\data\\system.log"
+#
+# A minimal template (only required fields + the most important options)
+# can be generated via: modenanalyse-2fe2s --write-template run.toml
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+[input]
+# -----------------------------------------------------------------------------
+
+log_file   = "PATH/TO/gaussian.log"        # Required: Gaussian .log with freq=hpmodes (or ORCA .hess)
+output_dir = "PATH/TO/output_directory"    # Required: target directory for Excel/PNG
+
+pdb_file   = ""                            # Optional: PDB for ligand identification. Default empty.
+pdb_chain  = "A"                           # Chain identifier in the PDB. Default "A".
+logname_suffix = ""                        # Suffix for multiple runs from same log file.
+                                           # e.g. "_T80K" -> output: <log>_T80K_analysis.xlsx
+
+# -----------------------------------------------------------------------------
+[freq]
+# -----------------------------------------------------------------------------
+
+# freq_min = 0.0          # Lower filter bound (cm^-1). Default: None (= no lower bound)
+freq_max   = 800.0        # Upper filter bound (cm^-1). Default: None.
+                          # RECOMMENDED: 800 (= NRVS measurement window; saves ~70% runtime)
+
+# Optional: multi-window mode. One Excel subfolder per window.
+# NIS and pDOS are still computed globally over all modes.
+# freq_windows = [[0, 100], [100, 300], [300, 500], [500, 700]]
+
+# -----------------------------------------------------------------------------
+[thermo]
+# -----------------------------------------------------------------------------
+
+temp_k = 80.0             # Sample temperature (K). Default: None (-> program requires explicit value).
+                          # Typical values: 5 K (NRVS measurement), 80 K (cryoprotectant), 300 K (RT)
+
+# amplitude = 1.0         # Global amplitude scale for eigenvectors. Default: 1.0
+
+# -----------------------------------------------------------------------------
+[cluster]
+# -----------------------------------------------------------------------------
+
+cluster_index   = 0       # For multi-[2Fe-2S] systems: 0 = closest cluster, 1 = next-closest, ...
+fe_s_cutoff     = 3.0     # Fe-S bond cutoff (Angstrom) for cluster detection. Default: 3.0
+fe_fe_cutoff    = 3.5     # Fe-Fe cutoff (Angstrom). Default: 3.5
+strict_cluster  = false   # If true: abort if not exactly Fe2S2 detected. Default: false (warn).
+
+# -----------------------------------------------------------------------------
+[ligand]
+# -----------------------------------------------------------------------------
+
+fe_coord_cutoff_n     = 2.50   # Maximum Fe-N distance for ligand assignment (Angstrom)
+fe_coord_cutoff_s     = 2.70   # Maximum Fe-S distance (S from Cys, Met)
+fe_coord_cutoff_o     = 2.50   # Maximum Fe-O distance (O from Asp, Glu, Tyr)
+include_hn_vibration  = true   # For protonated His: include H-N bond modulation in PCET
+
+# -----------------------------------------------------------------------------
+[oop]
+# -----------------------------------------------------------------------------
+
+mode_type_threshold        = 60.0       # Binary OOP/INP threshold (in percent)
+                                        # Now applies to lig_oop_pct (ligand sphere),
+                                        # no longer to global OOP (removed in v3.5).
+mode_type_detail_thresholds = [60.0, 75.0, 90.0]   # 7-level classification:
+                                                    # 90+: pure OOP/INP, 75-90: strong, 60-75: majority
+
+# -----------------------------------------------------------------------------
+[output]
+# -----------------------------------------------------------------------------
+# Excel output mode (v3.5):
+#   analysis_compact  Compact table with cell-wise color coding (red=trivial,
+#                     yellow=significant, green=high). Standard for daily work.
+#   analysis_full     Additional *_full sheet per main sheet with all values,
+#                     sigmas and explicit significance class columns. For
+#                     publication/Supplementary Information.
+# Both options can be active simultaneously (typical recommendation for
+# publication runs: both true).
+
+analysis_compact  = true
+analysis_full     = false
+
+# Universal significance thresholds (in multiples of sigma):
+#   |X|/sigma <= low        -> "trivial"
+#   low < |X|/sigma <= high -> "significant"
+#   |X|/sigma > high        -> "high"
+significance_threshold_low  = 1.0
+significance_threshold_high = 3.0
+
+# -----------------------------------------------------------------------------
+# [nis]   REMOVED in v3.4
+# -----------------------------------------------------------------------------
+# NIS calculations were removed from modenanalyse_2fe2s -- modenanalyse
+# focuses on mode classification. For NIS spectra or Fe-pDOS,
+# call nisspec3 separately on the same log file.
+# The former analyze_nis/nis_* fields are still parsed but
+# ignored (backward compatibility for old TOMLs).
+
+# -----------------------------------------------------------------------------
+[scsd]
+# -----------------------------------------------------------------------------
+
+analyze_scsd  = true       # SCSD analysis (D2h symmetry decomposition; requires scsdpy package)
+analyze_ss    = true       # Secondary-structure analysis (HELIX/SHEET from PDB)
+ss_chain      = ""         # Restrict to which PDB chain (empty = pdb_chain)
+
+# -----------------------------------------------------------------------------
+[pcet]
+# -----------------------------------------------------------------------------
+
+pcet_enabled                = true     # Compute PCET and ET score
+pcet_hbond_cutoff_a         = 4.0      # H-bond acceptor search radius from H atom (Angstrom)
+pcet_dr_normalization_a     = 0.05     # Saturation scale for tanh(|dr|/d0). Default 0.05 A.
+                                       # At dr=0.05 A: tanh~0.76 (76%); at 0.10 A: 96%
+pcet_strong_threshold       = 0.5      # Candidate is "strong" if P_PCET or P_ET >= 0.5
+pcet_moderate_threshold     = 0.2      # Candidate is "moderate" if >= 0.2
+pcet_band_edges_cm1         = [200.0, 500.0, 800.0]   # Window edges for PCET frequency bands
+
+# -----------------------------------------------------------------------------
+[embedding]
+# -----------------------------------------------------------------------------
+
+export_embedding_plots = true       # Generate PNGs (PCA, t-SNE, UMAP). Default: true
+# umap_n_neighbors     = 15         # Default: None (auto heuristic: max(5, min(15, N//100)))
+# tsne_perplexity      = 15         # Default: None (auto heuristic analogous to UMAP)
+
+# -----------------------------------------------------------------------------
+[numerics]
+# -----------------------------------------------------------------------------
+
+include_hydrogen     = true        # Include H atoms in the mode analysis
+sigma_eigvec         = 5e-4        # Gaussian sigma for eigenvector smoothing (numerical)
+sigma_coord          = 1e-3        # Gaussian sigma for coordinate tolerance (Angstrom)
+amplitude_threshold  = 0.001       # Lower threshold for relevant atomic displacements (Angstrom)
+coord_match_tol      = 1.0         # Tolerance for atom matching between log file/PDB (Angstrom)
+scan_chunk_mb        = 16          # Chunk size for log-file scan (MB). Higher = faster, more RAM
+show_errors_in_excel = true        # List parse errors in the Excel sheet "Errors"
+use_cache            = true        # Use block metadata cache (.cache_blocks.npz)
+interp_step          = 0.05        # Frequency grid spacing for interpolation Excel (cm^-1)
+interp_boundary_mode = "context"   # Boundary handling: "context" / "fade" / "hard"
+interp_edge_extend   = 0.5         # Interpolation extension at the edge (cm^-1)
+interp_context_cm1   = 5.0         # Context-modes range on both sides of filter limits (cm^-1)

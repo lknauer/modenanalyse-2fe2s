@@ -1,0 +1,128 @@
+# =============================================================================
+#  Example configuration: 2Fe-2S cluster with multi-window (modenanalyse_2fe2s v1.0.0)
+# =============================================================================
+#  Multi-window mode with the four frequency ranges 0-100, 100-300,
+#  300-500 and 0-500 cm-1. Per window, a separate subfolder is created
+#  with its own analysis.xlsx, Embeddings.xlsx and all reorg
+#  aggregates (Reorg_total, Modulation_spectra, Lambda_cumulative,
+#  Reorg_per_bond). At the top level, an additional overall analysis.
+#
+#  Temperature: 5 K (low-temperature NRVS, liquid He).
+# =============================================================================
+
+[input]
+log_file   = "PATH/TO/cluster_wt.log"      # REQUIRED: customize
+pdb_file   = "PATH/TO/cluster_wt.pdb"      # OPTIONAL: customize
+output_dir = "PATH/TO/output_directory"    # REQUIRED: customize
+pdb_chain  = "A"
+
+# -----------------------------------------------------------------------------
+#  Frequency windows (multi-window mode)
+# -----------------------------------------------------------------------------
+#  Each window (lo, hi) creates its own subfolder
+#  "{lo:.0f}-{hi:.0f}_cm-1/" with separate Excel files.
+#  freq_min / freq_max are ignored in multi-window mode.
+freq_windows = [
+    [0,   100],
+    [100, 300],
+    [300, 500],
+    [0,   500],
+]
+
+# -----------------------------------------------------------------------------
+#  Thermodynamics
+# -----------------------------------------------------------------------------
+[thermo]
+# Temperature in Kelvin for thermal amplitude.
+# At 5 K (NRVS low temperature, liquid He), all modes with
+# omega > kT/h ~ 3.5 cm-1 are in the vibrational ground state. u_rms is
+# dominated by zero-point motion: u_rms = sqrt(hbar/(2*mu*omega)).
+temp_k    = 5.0
+amplitude = 1.0   # Fallback amplitude (ignored when temp_k != None)
+
+# -----------------------------------------------------------------------------
+#  Cluster detection
+# -----------------------------------------------------------------------------
+[cluster]
+fe_s_cutoff     = 3.0
+fe_fe_cutoff    = 3.5
+cluster_index   = 0
+strict_cluster  = false
+
+# -----------------------------------------------------------------------------
+#  Ligand coordination
+# -----------------------------------------------------------------------------
+[ligand]
+fe_coord_cutoff_n    = 2.5    # Fe-N (His)
+fe_coord_cutoff_s    = 2.7    # Fe-S (Cys)
+fe_coord_cutoff_o    = 2.5    # Fe-O (Asp/Glu/Tyr)
+include_hn_vibration = true   # H-N bond modulation in His_HN sheet
+
+# -----------------------------------------------------------------------------
+#  OOP/INP classification
+# -----------------------------------------------------------------------------
+[oop]
+mode_type_threshold         = 60.0
+mode_type_detail_thresholds = [60.0, 75.0, 90.0]
+
+# -----------------------------------------------------------------------------
+#  Output options
+# -----------------------------------------------------------------------------
+[output]
+analysis_compact            = true
+analysis_full               = false   # Full sheet (with sigma values) OFF
+significance_threshold_low  = 1.0
+significance_threshold_high = 3.0
+
+# -----------------------------------------------------------------------------
+#  SCSD and secondary-structure analysis
+# -----------------------------------------------------------------------------
+[scsd]
+analyze_scsd = true
+analyze_ss   = true
+ss_chain     = ""    # empty = pdb_chain is used
+
+# -----------------------------------------------------------------------------
+#  PCET / Marcus-Hush reorganization modulations (v3.7)
+# -----------------------------------------------------------------------------
+#  In v3.7, P_CPET/P_PT/P_ET scores and classification thresholds
+#  were removed. Active is the Marcus-Hush reorganization pipeline:
+#  per mode dr_X and lambda_X = (1/2) mu omega^2 dr^2 for all
+#  bond channels X = FeFe, FeN, FeS, NH, HA. dr_HA is computed in
+#  reaction-coordinate mode (v3.7.1): H motion relative to donor N
+#  projected onto N->acceptor axis. Per His-H, only the main
+#  acceptor (max Gaussian weight) is used.
+[pcet]
+pcet_enabled         = true
+pcet_hbond_cutoff_a  = 4.0    # H-bond acceptor search radius around H
+pcet_acceptor_r0_a   = 2.8    # Optimal distance for Gaussian weighting
+pcet_acceptor_sigma_a = 0.4   # Tolerance of the Gaussian weighting
+
+# Marcus-Hush spectrum parameters (v3.7.0+):
+reorg_spectrum_sigma_cm1 = 5.0   # Gaussian broadening of M_X(omega)
+reorg_spectrum_step_cm1  = 0.5   # Frequency grid step size
+
+# -----------------------------------------------------------------------------
+#  Embedding (v3.7.2: only UMAP, 31 features)
+# -----------------------------------------------------------------------------
+[embedding]
+export_embedding_plots = true   # Generate PNG plots of UMAP projections
+# umap_n_neighbors = 15           # optional: manual override
+                                  # (default: max(5, min(15, N//100)) -> 15 for typical Cys2His2 model systems)
+
+# -----------------------------------------------------------------------------
+#  Numerics / eigenvector analysis
+# -----------------------------------------------------------------------------
+[numerics]
+include_hydrogen     = true   # H atoms in eigenvector read path
+sigma_eigvec         = 5e-4   # Statistical uncertainty of eigvec components
+sigma_coord          = 1e-3   # Statistical uncertainty of atomic positions
+amplitude_threshold  = 0.001  # Modes below this threshold are discarded
+coord_match_tol      = 1.0    # Tolerance for PDB-Gaussian atom matching (A)
+interp_step          = 0.05   # Interpolation grid for frequency view
+interp_boundary_mode = "context"  # "context" = with context modes across window boundary
+interp_edge_extend   = 0.5    # Grid extension beyond the window
+interp_context_cm1   = 5.0    # Context width (cm-1) across window boundaries
+scan_chunk_mb        = 16     # Read chunk size for the log-file scan
+use_cache            = true   # Cache block metadata and scan offsets
+show_errors_in_excel = true   # Make geometry errors visible in Excel
