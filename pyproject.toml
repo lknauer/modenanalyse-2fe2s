@@ -64,14 +64,14 @@ test = [
 ]
 
 [project.scripts]
-modenanalyse-2fe2s = "modenanalyse_2fe2s.cli:main"
+modenanalyse_2fe2s = "modenanalyse_2fe2s.cli:main"
 
 [project.urls]
 # Update once the GitHub repo is public:
-Homepage      = "https://github.com/lknauer/modenanalyse_2fe2s"
-Documentation = "https://github.com/lknauer/modenanalyse_2fe2s/blob/main/docs/Manual.pdf"
-Issues        = "https://github.com/lknauer/modenanalyse_2fe2s/issues"
-Source        = "https://github.com/lknauer/modenanalyse_2fe2s"
+Homepage      = "https://github.com/lknauer/modenanalyse-2fe2s"
+Documentation = "https://github.com/lknauer/modenanalyse-2fe2s/blob/main/docs/Manual.pdf"
+Issues        = "https://github.com/lknauer/modenanalyse-2fe2s/issues"
+Source        = "https://github.com/lknauer/modenanalyse-2fe2s"
 
 [tool.setuptools.packages.find]
 where   = ["src"]
