@@ -4,7 +4,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-94%20passing-brightgreen.svg)](tests/)
-[![DOI](https://img.shields.io/badge/DOI-pending-lightgrey.svg)](#citation)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20074194.svg)](https://doi.org/10.5281/zenodo.20074194)
 
 **Mode-resolved vibrational analysis for [2Fe-2S] clusters**, with focus on
 reorganization energies for electron transfer (ET) and proton-coupled
@@ -188,15 +188,17 @@ python -m pytest tests/ -m slow        # smoke tests (~80 sec)
 
 ## Citation
 
-If you use `modenanalyse_2fe2s` in your research, please cite:
+If you use `modenanalyse_2fe2s` in your research, please cite this
+specific version (v1.0.0):
 
 > Knauer, L. (2026). *modenanalyse_2fe2s: Mode-resolved bonding
 > reorganization analysis for [2Fe-2S] iron-sulfur clusters from DFT
 > frequency calculations* (Version 1.0.0) [Software]. Zenodo.
-> https://doi.org/10.5281/zenodo.XXXXXXX
+> https://doi.org/10.5281/zenodo.20074193
 
-(The DOI will be assigned by Zenodo upon the first GitHub release;
-the placeholder above will be replaced in the published version.)
+To cite the software in general (always resolving to the latest
+version), use the **concept DOI**:
+[10.5281/zenodo.20074194](https://doi.org/10.5281/zenodo.20074194).
 
 BibTeX:
 
@@ -210,8 +212,8 @@ BibTeX:
   year         = 2026,
   publisher    = {Zenodo},
   version      = {1.0.0},
-  doi          = {10.5281/zenodo.XXXXXXX},
-  url          = {https://doi.org/10.5281/zenodo.XXXXXXX}
+  doi          = {10.5281/zenodo.20074193},
+  url          = {https://doi.org/10.5281/zenodo.20074193}
 }
 ```
 

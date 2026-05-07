@@ -14,14 +14,15 @@ authors:
 version: "1.0.0"
 date-released: "2026-05-07"
 license: GPL-3.0-or-later
-# DOI will be assigned automatically by Zenodo upon first GitHub release.
-# After release, replace the placeholder values below with the actual DOI:
-# doi: 10.5281/zenodo.XXXXXXX
-# url: "https://doi.org/10.5281/zenodo.XXXXXXX"
-# identifiers:
-#   - type: doi
-#     value: 10.5281/zenodo.XXXXXXX
-#     description: Zenodo DOI for v1.0.0
+doi: 10.5281/zenodo.20074193
+url: "https://doi.org/10.5281/zenodo.20074193"
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.20074193
+    description: Zenodo DOI for v1.0.0 (this specific version)
+  - type: doi
+    value: 10.5281/zenodo.20074194
+    description: Zenodo concept DOI (always resolves to the latest version)
 keywords:
   - quantum-chemistry
   - normal-mode-analysis
