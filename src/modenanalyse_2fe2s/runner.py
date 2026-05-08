@@ -20,7 +20,7 @@ Running
 -------
 ::
 
-    modenanalyse-2fe2s --config run.toml
+    modenanalyse-2fe2s run.toml
 
 or programmatically::
 
@@ -32,14 +32,12 @@ Output files
 ------------
 ``_analysis.xlsx``
     Main analysis: mode_analysis, group amplitudes, Fe-ligand amplitudes,
-    His H-N, equilibrium geometry, B-factors, info.
+    His H-N, equilibrium geometry, SCSD, reorganization energies,
+    B-factors, info.
 ``_analysis_SS.xlsx``
     Secondary-structure amplitudes (if PDB available).
 ``_analysis_Embeddings.xlsx``
-    PCA/UMAP/t-SNE + HDBSCAN clusters + C-alpha amplitudes.
-``_analysis_NIS.xlsx``
-    NIS intensities, simulated spectra (Gauss/Lorentz/Voigt), Fe-pDOS,
-    Lamb-Moessbauer factor at multiple temperatures.
+    UMAP coordinates + HDBSCAN clusters + C-alpha amplitudes.
 ``_analysis_interp{step}.xlsx``
     Core analysis on uniform frequency grid (step = interp_step).
     Symmetric boundary treatment: context modes left and right of the
@@ -49,8 +47,7 @@ Output files
 ``_embedding_*.png``
     Embedding figure (UMAP).
 ``_REPORT.txt``
-    Run report: configuration, coordination, mode distribution, NIS,
-    warnings.
+    Run report: configuration, coordination, mode distribution, warnings.
 
 Frequency subfolders
 --------------------
@@ -555,7 +552,7 @@ def _run_analysis_single(cfg: "Config") -> int:
         coord_info.et_info    = build_et_info(coord_info, fe_c, s_c)
         if coord_info.pcet_info.enabled:
             runlog.info(
-                f"v3.7 reorg modulations active "
+                f"Reorg modulations active "
                 f"({coord_info.pcet_info.diagnose}). "
                 f"Computes per mode: dr_X and lambda_X = (1/2) mu omega^2 dr^2 "
                 f"for all bonding channels X = FeFe, FeN, FeS, NH, HA. "
@@ -1324,17 +1321,16 @@ def _run_analysis_single(cfg: "Config") -> int:
     print(f"  modes analyzed:   {len(results)}")
     print(f"  HP eigvec:          {n_hp}/{len(results)}")
     if n_std: print(f"  standard fallback:  {n_std}/{len(results)}")
-    runlog.info(f"Ergebnis: In-plane={n_ip}, Out-of-plane={n_oop}, "
-                f"Torsional={n_mx}, Fehlgeschlagen={n_fail}")
+    runlog.info(f"Result: In-plane={n_ip}, Out-of-plane={n_oop}, "
+                f"Torsional={n_mx}, Failed={n_fail}")
     print(f"  In-plane:           {n_ip}")
     print(f"  Out-of-plane:       {n_oop}")
     print(f"  Torsional:          {n_mx}")
-    if n_fail:           print(f"  Fehlgeschlagen:     {n_fail}")
+    if n_fail:           print(f"  Failed:     {n_fail}")
     if runlog.warnings:  print(f"  Warnings:          {len(runlog.warnings)}")
     if runlog.errors:    print(f"  ERRORS:             {len(runlog.errors)}")
     if _multi_window:
-        print(f"  Fenster:            {len(cfg.get_windows())}")
-        print(f"  NIS Excel:          {base}_analysis_NIS.xlsx  (global)")
+        print(f"  Windows:            {len(cfg.get_windows())}")
         print(f"  Output:            {_base_outdir}")
     else:
         print(f"  Output:            {cfg.outdir()}")

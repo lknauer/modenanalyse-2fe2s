@@ -113,8 +113,9 @@ def make_parser() -> argparse.ArgumentParser:
     # Toggle
     g_t = p.add_argument_group("Module on/off (override)")
     g_t.add_argument("--no-nis",  action="store_true",
-                     help="(Deprecated, ignored) NIS spectra are since "
-                          "v1.0.0 produced exclusively by nisspec3.")
+                     help="(Deprecated, ignored) NIS spectra are not "
+                          "produced by this tool; use a dedicated NIS "
+                          "package on the same log file.")
     g_t.add_argument("--no-scsd", action="store_true",
                      help="Skip SCSD analysis.")
     g_t.add_argument("--no-pcet", action="store_true",
@@ -131,8 +132,13 @@ def _write_template(path: str) -> None:
 # Created with --write-template (v{__version__}).
 #
 # Fields with '#' at the start are commented out (default values active).
-# Paths on Windows: use forward slashes or doubled backslashes:
-#   "D:/data/dimer.log"   or   "D:\\\\data\\\\dimer.log"
+#
+# Paths on Windows: TOML strings in double quotes interpret backslashes
+# as escape characters. Use one of these three forms:
+#   "D:/data/system.log"      forward slashes (works on Windows too)
+#   'D:\\data\\system.log'      single quotes = TOML literal string (no escaping)
+#   "D:\\\\data\\\\system.log"    escaped backslashes
+# Note: Python's r"..." raw-string syntax is NOT valid TOML.
 
 [input]
 log_file   = "PATH/TO/gaussian.log"
@@ -142,12 +148,12 @@ pdb_file   = "PATH/TO/structure.pdb"     # optional, but recommended
 # logname_suffix = ""                    # for multiple runs on the same log file
 
 [freq]
-# Lower/upper filter limit (applies to mode analysis AND NIS/pDOS).
+# Lower/upper filter limit for the mode analysis (in cm^-1).
 # freq_min = 0.0
 freq_max = 800.0
 
 # Optional: multi-window mode. One Excel subfolder per window;
-# NIS/pDOS continue to be computed globally across all modes.
+# the cluster/embedding analysis is run independently within each window.
 # freq_windows = [[0, 100], [100, 300], [300, 500], [500, 700]]
 
 [thermo]
@@ -237,9 +243,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.cluster_index is not None: cfg.cluster_index = args.cluster_index
     if args.no_nis:
         import warnings as _w
-        _w.warn("--no-nis deprecated and ignored. "
-                "NIS spectra are since v1.0.0 produced exclusively by "
-                "nisspec3.", DeprecationWarning, stacklevel=2)
+        _w.warn("--no-nis is deprecated and ignored. NIS spectra are "
+                "not produced by this tool.",
+                DeprecationWarning, stacklevel=2)
     if args.no_scsd:   cfg.analyze_scsd = False
     if args.no_pcet:   cfg.pcet_enabled = False
     if args.no_cache:  cfg.use_cache    = False

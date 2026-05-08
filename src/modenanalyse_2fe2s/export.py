@@ -9,25 +9,23 @@ export.py
 Excel-Export the Analyseergebnisse in sechs separate Excel fileen
 plus Embedding-PNGs.
 
-output fileen
+output files
 --------------
 ``_analysis.xlsx``
-    Kern-Analyse: Modenanalyse, Gruppen, Fe-ligands, His_HN, Kern_Scores,
-    Abstaende, SCSD, B-Faktoren, Info.
+    Core analysis: mode_analysis, groups, Fe-ligands, His_HN, kernel scores,
+    distances, SCSD, reorganization energies, B-factors, info.
 ``_analysis_SS.xlsx``
-    Sekundaerstruktur-Amplituden (nur if SS-elements in the PDB present).
+    Secondary-structure amplitudes (only if SS elements present in the PDB).
 ``_analysis_Embeddings.xlsx``
-    PCA/UMAP/t-SNE-Koordinaten, Cluster-Sheets, Calpha-Amplituden.
-``_analysis_NIS.xlsx``
-    NIS-Intensitaeten and simuliertes S(E)-Spektrum for allen Temperaturen.
+    UMAP coordinates, cluster sheets, C-alpha amplitudes.
 ``_analysis_interp{step}.xlsx``
-    Interpolierte Kern-Analyse on gleichmaessigem Raster
-    (Schrittweite = cfg.interp_step). Symmetrische Randbehandlung:
-    context modes left (context_results_left) and rechts (context_results).
+    Interpolated core analysis on a uniform grid
+    (step size = cfg.interp_step). Symmetric boundary treatment:
+    context modes left (context_results_left) and right (context_results).
 ``_analysis_SS_interp{step}.xlsx``
-    Sekundaerstruktur-Amplituden on gleichmaessigem Raster.
+    Secondary-structure amplitudes on a uniform grid.
 
-Oeffentliche functions
+Public functions
 -----------------------
 export_main_excel
     Writes ``_analysis.xlsx``.

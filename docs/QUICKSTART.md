@@ -14,7 +14,7 @@ By the end of this guide, you will:
 
 ## Prerequisites
 
-- Python 3.10 or later
+- Python 3.11 or later
 - A Gaussian-16 `.log` file (with `freq=hpmodes`) **or** an ORCA-6 `.hess` file
 - (Optional) A matching PDB file for ligand detection
 - ~500 MB free disk space for dependencies
@@ -23,7 +23,7 @@ By the end of this guide, you will:
 
 ```bash
 # From the unpacked release directory:
-pip install modenanalyse_2fe2s-1.0.0-py3-none-any.whl
+pip install modenanalyse_2fe2s-1.0.1-py3-none-any.whl
 ```
 
 This pulls in `numpy`, `scipy`, `pandas`, `matplotlib`, `openpyxl`,
@@ -219,10 +219,47 @@ For reproducible runs, use a TOML configuration:
 ```bash
 modenanalyse-2fe2s --write-template my_run.toml
 # edit my_run.toml as needed
-modenanalyse-2fe2s --config my_run.toml
+modenanalyse-2fe2s my_run.toml
 ```
 
-The TOML format is git-friendly and self-documenting.
+The TOML file path is the first **positional** argument; no `--config`
+flag is needed.
+
+### Pitfalls with paths in TOML
+
+TOML strings with double quotes interpret backslashes as escape
+characters, so Windows paths like `"D:\Data\file.log"` will fail
+parsing. Three valid alternatives:
+
+```toml
+# 1. Forward slashes (works on Windows too)
+log_file = "D:/Data/file.log"
+
+# 2. Single quotes = TOML literal string (no escaping)
+log_file = 'D:\Data\file.log'
+
+# 3. Escaped backslashes
+log_file = "D:\\Data\\file.log"
+```
+
+Note: Python's raw-string syntax `r"..."` is **not** valid TOML --
+remove the `r` prefix when copying paths from Python code into a
+TOML file.
+
+### CLI overrides
+
+CLI arguments can override individual TOML fields without editing
+the file:
+
+```bash
+# Use my_run.toml but force temp_k = 40 K
+modenanalyse-2fe2s my_run.toml --temp-k 40.0
+
+# Use my_run.toml but write to a different output directory
+modenanalyse-2fe2s my_run.toml --output-dir ./results_test
+```
+
+This is useful for parameter scans where most fields stay the same.
 
 ## What's next?
 
@@ -272,9 +309,7 @@ The TOML format is git-friendly and self-documenting.
 - `docs/Manual.pdf` -- English manual (~17 pages) with theory,
   configuration reference, output reference, multi-cluster workflow,
   validation, and troubleshooting (recommended starting point)
-- `docs/Manual_full_EN.pdf` -- complete English translation of the
-  original German manual (~103 pages, full depth)
-- `docs/Manual_DE.pdf` -- original German manual (102 pages)
+- `docs/Manual_DE.pdf` -- complete reference manual in German (96 pages)
 - `docs/SHEET_MAPPING_DE_EN.md` — sheet/column mapping if you also use
   the German edition
 - `examples/full_template.toml` — annotated configuration template

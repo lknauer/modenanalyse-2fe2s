@@ -1,5 +1,5 @@
 # =============================================================================
-#  Example configuration: 2Fe-2S cluster with multi-window (modenanalyse_2fe2s v1.0.0)
+#  Example configuration: 2Fe-2S cluster with multi-window mode
 # =============================================================================
 #  Multi-window mode with the four frequency ranges 0-100, 100-300,
 #  300-500 and 0-500 cm-1. Per window, a separate subfolder is created

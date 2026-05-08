@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name        = "modenanalyse_2fe2s"
-version     = "1.0.0"
+version     = "1.0.1"
 description = "Mode-resolved bonding reorganization analysis for [2Fe-2S] iron-sulfur clusters from Gaussian-16 and ORCA-6 frequency calculations"
 readme      = "README.md"
 requires-python = ">=3.11"  # tomllib (config.from_toml)
@@ -64,12 +64,11 @@ test = [
 ]
 
 [project.scripts]
-modenanalyse_2fe2s = "modenanalyse_2fe2s.cli:main"
+modenanalyse-2fe2s = "modenanalyse_2fe2s.cli:main"
 
 [project.urls]
-# Update once the GitHub repo is public:
 Homepage      = "https://github.com/lknauer/modenanalyse-2fe2s"
-Documentation = "https://github.com/lknauer/modenanalyse-2fe2s/blob/main/docs/Manual.pdf"
+Documentation = "https://github.com/lknauer/modenanalyse-2fe2s/blob/main/docs/Manual_EN.pdf"
 Issues        = "https://github.com/lknauer/modenanalyse-2fe2s/issues"
 Source        = "https://github.com/lknauer/modenanalyse-2fe2s"
 

@@ -387,15 +387,13 @@ def test_to_toml_then_from_toml_roundtrip():
 
 
 def test_config_has_expected_n_fields():
-    """Anzahl Config-Felder bleibt stabil (Regression-Test)."""
+    """Number of Config fields is stable (regression test)."""
     fields = dataclasses.fields(Config)
-    # 48 Felder in v1.0.0:
-    #   - 47 nach NIS-Cleanup in v3.7.5 (vorher 58 mit 11 NIS-Feldern;
-    #     NIS-Berechnungen erfolgen jetzt ausschliesslich in nisspec3).
-    #   - +1 in v1.0.0: analyze_all_clusters (Multi-Cluster-Modus).
+    # 48 fields in v1.0.0 (47 + analyze_all_clusters for multi-cluster mode).
+    # If a field is intentionally added/removed, update this number.
     assert len(fields) == 48, (
-        f"Erwartet 48 Felder, bekommen {len(fields)}. Falls bewusst ein "
-        f"Feld hinzugefuegt/entfernt wurde, bitte hier aktualisieren.")
+        f"Expected 48 fields, got {len(fields)}. If a field was "
+        f"intentionally added or removed, please update this number.")
 
 
 # =============================================================================

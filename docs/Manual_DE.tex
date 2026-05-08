@@ -1,8 +1,8 @@
 % =========================================================================
 % modenanalyse_2fe2s -- Handbuch und theoretische Dokumentation
-% Version 3.0  (Mai 2026)
+% Version 1.0.1  (Mai 2026)
 %
-% Stilvorlage: nisspec3-Handbuch (Knauer / AG Schuenemann, RPTU)
+% Lukas Knauer, AG Schuenemann, RPTU Kaiserslautern-Landau
 % =========================================================================
 \documentclass[11pt,a4paper,twoside]{article}
 
@@ -96,7 +96,7 @@
 \usepackage{float}
 \floatname{algorithm}{Pseudocode}
 
-% ---------- TikZ / PGFplots (fuer NIS-Theorie aus nisspec3 uebernommen) ---
+% ---------- TikZ / PGFplots ---------------------------------------------
 \usepackage{tikz}
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.18}
@@ -112,7 +112,7 @@
 \renewcommand{\algorithmicwhile}{\textbf{solange}}
 \renewcommand{\algorithmicreturn}{\textbf{gib zur\"uck}}
 
-% ---------- Custom-Macros (v3.7.5) --------------------------------------
+% ---------- Custom-Macros ------------------------------------------------
 \providecommand{\angstrom}{\text{\AA}}    % Angstrom-Symbol fuer math-Modus
 
 % ---------- Ueberschriften & TOC ----------------------------------------
@@ -167,7 +167,7 @@
 \newcommand{\Aui}{A_{\mathrm{u}}}
 \newcommand{\PCET}{\mathrm{PCET}}
 \newcommand{\ET}{\mathrm{ET}}
-% --- Zusaetzliche Macros aus dem nisspec3-Handbuch (Teil III) -----------
+% --- Zusaetzliche Macros (Theorie-Sektionen) -----------------------------
 \newcommand{\khat}{\hat{\mathbf{k}}}
 \newcommand{\bvec}{\mathbf{B}}
 \newcommand{\Eiso}{e^{2}_{\mathrm{iso}}}
@@ -198,7 +198,7 @@
   \begin{center}
     \vspace*{2cm}
     {\Huge\bfseries\color{accent} modenanalyse\_2fe2s}\\[0.4cm]
-    {\large Version 1.0.0}\\[2cm]
+    {\large Version 1.0.1}\\[2cm]
 
     \rule{\textwidth}{0.4pt}\\[0.3cm]
     {\LARGE\bfseries Handbuch und theoretische Dokumentation}\\[0.3cm]
@@ -302,39 +302,15 @@ zu Proton-gekoppeltem Elektronen-Transfer (PCET), Vergleich von
 Rieske- und Ferredoxin-artigen Systemen sowie Mutations-Effekte
 (z.\,B.\ HH$\to$CC).
 
-\subsection{Abgrenzung zu \texttt{nisspec3}}
-\label{sec:nisspec-link}
+\subsection{Was \texttt{modenanalyse\_2fe2s} liefert}
+\label{sec:scope}
 
-\texttt{nisspec3} ist ein eigenst\"andiges Python-Paket f\"ur die
-Simulation reiner NIS-Spektren und der zugeh\"origen Fe-Thermodynamik
-(Maradudin-Bessel-Mehrphonon-Entwicklung, ina32-kompatibel). Es ist
-allgemein f\"ur jedes M\"o\ss bauer-Isotop einsetzbar.
-
-\textbf{Wichtiger Architektur-Wechsel ab v3.4}: \texttt{modenanalyse\_2fe2s}
-hat \emph{keine} interne NIS-Berechnung mehr. NIS-Spektren, Fe-pDOS,
-Lamb-Mössbauer-Faktor und Thermodynamik werden durch \texttt{nisspec3}
-\emph{separat} bereitgestellt; das Modenanalyse-Werkzeug fokussiert
-sich vollst\"andig auf die strukturelle Mode-Klassifikation.
-
-Workflow:
-
-\begin{enumerate}
-  \item \textbf{NIS-Spektrum} (Maradudin-Bessel, multi-temperatur,
-        Pulvermittel): \texttt{nisspec3 ausf\"uhren auf
-        \texttt{<input>.log}} oder \texttt{<input>.hess}.
-  \item \textbf{Mode-Klassifikation, OOP/INP, SCSD, PCET-Score, Embeddings}:
-        \texttt{modenanalyse-2fe2s run.toml} auf derselben Logdatei.
-\end{enumerate}
-
-Die beiden Auswertungen sind \emph{unabh\"angig}: identische Konstanten,
-identische Eingabedatei, kein Datenaustausch zwischen den Tools n\"otig.
-Damit l\"asst sich \texttt{nisspec3} unabh\"angig aktualisieren, ohne
-\texttt{modenanalyse\_2fe2s} zu beeintraechtigen.
-
-\subsubsection*{Was \texttt{modenanalyse\_2fe2s} eigenst\"andig liefert}
+Das Werkzeug fokussiert sich auf die strukturelle Analyse von
+Schwingungsmoden in DFT-Frequenzrechnungen von [2Fe-2S]-Clustern.
+Die Hauptergebnisse pro Mode sind:
 
 \begin{itemize}
-  \item \textbf{Cluster-spezifische Analyse}: Erkennung des
+  \item \textbf{Cluster-spezifische Klassifikation}: Erkennung des
         {[}2Fe-2S{]}-Kerns, Klassifikation jeder Mode nach
         Out-of-plane / In-plane-Charakter, Symmetriezerlegung in
         D$_\mathrm{2h}$-Irreps.
@@ -347,14 +323,19 @@ Damit l\"asst sich \texttt{nisspec3} unabh\"angig aktualisieren, ohne
         Modulations-Spektren, kumulative $\Lambda_X(\omega)$) fuer
         die Banden-Identifikation extern in Origin.
   \item \textbf{Multi-Cluster-Unterst\"utzung}: Erkennung mehrerer
-        {[}2Fe-2S{]}-Cluster im selben System (z.\,B.\ mitoNEET-Dimer)
-        und Auswahl per Konfigurationsoption.
+        {[}2Fe-2S{]}-Cluster im selben System (z.\,B.\ Glutaredoxin-Dimer)
+        und parallele Auswertung als First-Class-Feature.
   \item \textbf{Embeddings} (UMAP, HDBSCAN-Clustering):
-        zweidimensionale Projektion des Mode-Featureraums.
+        zweidimensionale Projektion des Mode-Featureraums zur
+        explorativen Analyse.
   \item \textbf{ORCA-Support} (eigenst\"andiger \texttt{.hess}-Parser):
-        Mode-Analyse direkt aus ORCA-Frequenzrechnungen, ohne dass
-        \texttt{nisspec3} ben\"otigt wird.
+        Mode-Analyse direkt aus ORCA-Frequenzrechnungen.
 \end{itemize}
+
+NIS-Spektren, Fe-pDOS, Lamb-M\"o\ss bauer-Faktor und
+Fe-projizierte Thermodynamik sind \emph{nicht} Teil dieses Pakets.
+Diese Gr\"o\ss en lassen sich aus derselben DFT-Frequenzrechnung mit
+spezialisierten Werkzeugen separat berechnen.
 
 \subsection{Voraussetzungen}
 
@@ -364,12 +345,11 @@ Damit l\"asst sich \texttt{nisspec3} unabh\"angig aktualisieren, ohne
         \texttt{scikit-learn}, \texttt{umap-learn}, \texttt{hdbscan},
         \texttt{scsdpy}. Alle werden \emph{automatisch} \"uber das
         Wheel installiert.
-  \item \texttt{nisspec3} ist \textbf{nicht} mehr erforderlich (siehe
-        Abgrenzung oben).
   \item Eine \textbf{Gaussian-16-Logdatei} aus einer
         \texttt{freq=hpmodes}-Rechnung des optimierten Clusters
         (mindestens vier optimierte Schweratome: zwei Fe und zwei
-        br\"uckende S).
+        br\"uckende S) \textbf{oder} eine \textbf{ORCA-6
+        \texttt{.hess}-Datei}.
   \item Optional: \textbf{PDB-Datei} mit dem gleichen Cluster, f\"ur
         Liganden-Aufl\"osung und Sekund\"arstruktur-Analyse.
 \end{itemize}
@@ -383,21 +363,14 @@ Damit l\"asst sich \texttt{nisspec3} unabh\"angig aktualisieren, ohne
         $\zhat = \nhat$ als Cluster-Normale. Das ist konsistent mit
         der SCSD-Referenzgeometrie (siehe \S\ref{sec:scsd}).
   \item \textbf{Einheiten}: cm$^{-1}$ f\"ur Frequenzen,
-        \AA{} f\"ur L\"angen, AMU f\"ur Massen, meV f\"ur Energien
-        (NIS-Konvention), Kelvin f\"ur Temperaturen.
-        $\kB$ in \texttt{nisspec3}/\texttt{ina32}-Konvention:
-        $1/\kB = \SI{11.6048}{K/meV}$.
+        \AA{} f\"ur L\"angen, AMU f\"ur Massen, meV f\"ur Energien,
+        Kelvin f\"ur Temperaturen. F\"ur Boltzmann-Faktoren wird
+        $1/\kB = \SI{11.6048}{K/meV}$ verwendet.
   \item \textbf{Heuristisch vs.\ rigoros}: Wo eine Gr\"o\ss e aus
         einer Heuristik abgeleitet wird (z.\,B.\ die
         Bewegungsmuster-Scores Breathing, Hinge, ...), ist sie
         explizit als \emph{heuristisch} ausgewiesen. Strenge
         Symmetriezerlegung kommt aus SCSD.
-  \item \textbf{Element-Selektivit\"at}: Alle thermodynamischen
-        Gr\"o\ss en (Lamb-M\"o\ss bauer-Faktor, $\langle x^2 \rangle$,
-        $c_V$, $S$, $\langle k\rangle$, ...) sind aus der
-        \textbf{$^{57}$Fe-projizierten} pDOS abgeleitet. Sie
-        beschreiben den Mittelwert pro Fe-Atom, nicht den Cluster, das
-        Protein oder das Gesamtsystem (vgl.\ \texttt{nisspec3}-Handbuch \cite{NisspecHandbuch}).
 \end{itemize}
 
 \begin{infobox}
@@ -502,15 +475,6 @@ beschreiben die thermisch (oder bei $T \to 0$ rein quantenmechanisch)
 gemittelte Auslenkung pro Mode. Sie sind die Eingabe f\"ur s\"amtliche
 geometrischen Auswertungen ab \S\ref{sec:oop-inp}.
 
-\begin{warnbox}
-\textbf{Bugfix B3 (v3.0).} In Versionen vor v3.0 fehlte der Faktor
-$1/2$ unter der Wurzel in Gl.~(\ref{eq:urms}). Das f\"uhrte zu
-$\urms$-Werten, die um $\sqrt{2}$ \"uberh\"oht waren, und entsprechend
-zu \"uberh\"ohten thermischen Auslenkungen in allen
-geometrischen Scores. Resultate aus v$\leq$2.x sind in diesem
-Punkt nicht ohne Korrektur vergleichbar.
-\end{warnbox}
-
 % -------------------------------------------------------------------------
 \subsection{OOP/INP-Klassifikation}
 \label{sec:oop-inp}
@@ -588,8 +552,8 @@ Schwellenpr\"ufung unterzogen:
 mit Default $\theta_{\text{OOP}} = 60\,\%$ (per Config justierbar via
 \texttt{cfg.mode\_type\_threshold}).
 
-In v3.0 wurde zus\"atzlich eine \emph{feine Klassifikation} mit drei
-Schwellen $(\theta_1, \theta_2, \theta_3)$ eingef\"uhrt
+Zus\"atzlich existiert eine \emph{feine Klassifikation} mit drei
+Schwellen $(\theta_1, \theta_2, \theta_3)$
 (\texttt{core.classify\_oop\_inp}). Default $(60, 75, 90)$:
 
 \begin{center}
@@ -827,9 +791,8 @@ die SCSD-Zerlegung ist eine \emph{orthogonale} Basistransformation.
 \subsubsection*{Dominante Irrep -- rigoros bestimmt}
 \label{sec:scsd-rigoros}
 
-In v3.0 ersetzt eine rigorose Funktion
-(\texttt{core.extract\_dominant\_scsd\_irreps}) die fr\"uhere
-heuristische "`gr\"o\ss te Amplitude"'-Logik. Sie:
+Die rigorose Funktion \texttt{core.extract\_dominant\_scsd\_irreps}
+bestimmt die dominante Irrep wie folgt. Sie:
 
 \begin{enumerate}
   \item summiert die quadrierten Amplituden pro Irrep,
@@ -957,21 +920,16 @@ verwenden, nicht die Heuristik.
 Bei einem [2Fe--2S]-System mit 5\,000--19\,000 Modes ist eine
 gleichzeitige Darstellung aller Mode-Eigenschaften auf
 zweidimensionalen Plots nicht m\"oglich. \texttt{modenanalyse\_2fe2s}
-v3.7.2 nutzt \emph{ausschlie\ss lich} UMAP (Uniform Manifold
-Approximation and Projection) als Dimensionsreduktion, optional
-gefolgt von HDBSCAN-Clustering.
-
-PCA und t-SNE wurden in v3.7.2 entfernt; die Begr\"undung folgt im
-Abschnitt \emph{Wahl der Methode}. Wer die alten Embeddings
-ben\"otigt, findet sie in \texttt{modenanalyse\_2fe2s} v3.7.1.
+nutzt UMAP (Uniform Manifold Approximation and Projection) als
+Dimensionsreduktion, optional gefolgt von HDBSCAN-Clustering.
 
 \subsubsection*{Wahl der Methode: warum UMAP?}
 
-Drei Methoden waren in v3.0--v3.7.1 parallel implementiert: PCA, t-SNE,
-UMAP. Nach mehreren Test-L\"aufen auf protonierten und deprotonierten
-Cys$_2$His$_2$-Modellsystemen sowie einer
-HHCC-Mutante hat sich UMAP als die einzige Methode erwiesen, die f\"ur
-DFT-Mode-Daten konsistent interpretierbare Ergebnisse liefert.
+Im Vergleich zu Alternativen (PCA, t-SNE) hat sich UMAP nach
+Test-L\"aufen auf protonierten und deprotonierten
+Cys$_2$His$_2$-Modellsystemen sowie einer HHCC-Mutante als die
+einzige Methode erwiesen, die f\"ur DFT-Mode-Daten konsistent
+interpretierbare Ergebnisse liefert.
 
 \begin{itemize}
   \item \textbf{PCA} \cite{Pearson1901,Hotelling1933,Jolliffe2002} ist
@@ -1021,7 +979,7 @@ unscharfer simplizialer Mengen \cite{McInnes2018}.
 \paragraph{Schritt 1: Hochdimensionaler Nachbarschaftsgraph.}
 
 Im urspr\"unglichen Featureraum $\mathbb{R}^p$ (mit $p = 31$ Features
-in v3.7.2) wird f\"ur jeden Datenpunkt $x_i$ ein lokaler
+) wird f\"ur jeden Datenpunkt $x_i$ ein lokaler
 Nachbarschaftsgraph konstruiert. Pro Punkt werden die $k$ n\"achsten
 Nachbarn bestimmt (Parameter \texttt{n\_neighbors}). Die Distanz zu
 diesen Nachbarn wird mittels einer adaptiven Metrik
@@ -1099,12 +1057,10 @@ Override).
 \subsubsection*{Feature-Matrix}
 \label{sec:embedding-features}
 
-Pro Mode werden 31 numerische Features extrahiert. Die Auswahl ist
-das Ergebnis einer schrittweisen Bereinigung (v3.7.2): in fr\"uheren
-Versionen waren bis zu 33 Features eingebaut, von denen zwei
-\texttt{Cys *\_OOP} per geometrischer Konstruktion immer null sind
-(Cys-S$_\gamma$ liegt in der Cluster-Ebene, hat keine
-Out-of-plane-Komponente). Diese wurden entfernt. Die verbleibenden 31
+Pro Mode werden 31 numerische Features extrahiert. Zwei urspr\"unglich
+geplante \texttt{Cys *\_OOP}-Features sind per geometrischer Konstruktion
+immer null (Cys-S$_\gamma$ liegt in der Cluster-Ebene, hat keine
+Out-of-plane-Komponente) und wurden ausgeschlossen. Die verbleibenden 31
 Features sind:
 
 \begin{enumerate}\setlength{\itemsep}{0pt}\setlength{\parsep}{0pt}
@@ -1204,7 +1160,7 @@ Auto-Heuristik
 \[
   \texttt{mcs} = \max\bigl(5, \min(30, \sqrt{N})\bigr),
 \]
-seit v3.1. F\"ur typische [2Fe-2S]-Protein-Systeme ($N \approx 5\,000$--$10\,000$) ergibt das
+F\"ur typische [2Fe-2S]-Protein-Systeme ($N \approx 5\,000$--$10\,000$) ergibt das
 $\texttt{mcs} = 30$.
 
 \begin{infobox}
@@ -1252,45 +1208,10 @@ m\"ussen installiert sein. Ohne diese Pakete werden die UMAP-Sheets
 \end{enumerate}
 
 
-
-
-\label{sec:nis}
-
-\texttt{modenanalyse\_2fe2s} delegiert die NIS-Spektrum-Simulation und
-die Berechnung aller thermodynamischen Gr\"o\ss en
-($\fLM$, $\langle x^2\rangle$, $c_V$, $S$, $\langle k\rangle$,
-$\ER$) vollst\"andig an \texttt{nisspec3}.
-
-Die theoretischen Grundlagen -- 1-Phonon-Absorption,
-Maradudin-Bessel-Mehrphonon-Entwicklung, Pulvermittel,
-Lamb-M\"o\ss bauer-Faktor, ina32-kompatible Thermo-Auswertung -- sind
-in Teil~\ref{part:nis-theorie} (NIS- und Thermodynamik-Theorie)
-ausf\"uhrlich dargestellt. Dieser Teil ist eine \emph{1:1-\"Ubernahme}
-des nisspec3-Handbuchs \cite{NisspecHandbuch}, weil sich die Theorie
-nicht zwischen den beiden Programmen unterscheidet (sie teilen sich
-denselben Backend-Code).
-
-In \texttt{modenanalyse\_2fe2s} wird zus\"atzlich:
-\begin{itemize}
-  \item Der \texttt{ParseResult} f\"ur die nisspec3-Maradudin-
-        Entwicklung wird seit v3.2 \emph{in-memory} aus den
-        Phase-4-Daten gebaut, statt die Logdatei ein zweites Mal zu
-        lesen. Bei sehr gro\ss en Files (z.\,B.\ 10~GB-Logfiles bei sehr gro\ss en Cys$_2$His$_2$-Modellen)
-        spart das ca.\ 1--2~Min I/O und ca.\ 5~GB Spitzen-RAM.
-        Speicher-Schutz-Schwelle: \texttt{cfg.nis\_inmemory\_max\_atom\_modes}
-        (Default $5\cdot 10^7$).
-  \item Die NIS-Berechnung erfolgt einmal global \"uber alle
-        analysierten Modes -- nicht pro Frequenzfenster --, weil die
-        Mehrphonon-Faltung die volle pDOS ben\"otigt.
-  \item Die berechnete Fe-pDOS wird per
-        \texttt{nis.check\_pdos\_consistency} auf die Normierung
-        $\int g_\Fei(\omega)\,d\omega = 1$ gepr\"uft (Toleranz
-        $10^{-3}$). Abweichungen landen im Befund.
-\end{itemize}
-
 % =========================================================================
-% NEUE THEORIE-KAPITEL VOR DEM REORG-KAPITEL (v3.7.5 Detailausbau)
+% Theorie-Kapitel zur mode-aufgel\"osten Reorg-Pipeline
 % =========================================================================
+
 
 \subsection{Marcus-Hush-Theorie der Reorganisation}
 \label{sec:marcus-hush}
@@ -1458,11 +1379,11 @@ NRVS-Bandenidentifikation ist genau diese Verteilung wichtig:
   \item Welche Mutationen sollten welche Bandenstruktur ver\"andern?
 \end{itemize}
 
-Die Multi-Mode-Sicht ist auch der Grund, warum die fr\"ueheren v3.6
+Die Multi-Mode-Sicht ist auch der Grund, warum globale
 "`Top-Mode-Klassifikations"'-Ans\"atze (PCET-Score, $L_\text{PCET}$,
 filter\_variant) konzeptionell unbefriedigend waren: sie suchten nach
 \emph{einer} dominierenden Mode, w\"ahrend die Realit\"at eine breite
-Verteilung ist. Die mode-aufgel\"oste Reorg-Pipeline in v3.7 macht
+Verteilung ist. Die mode-aufgel\"oste Reorg-Pipeline macht
 diese Verteilung explizit.
 
 \subsubsection*{Was bedeutet $\Delta Q$ vs.\ $\Delta r_X$?}
@@ -1671,8 +1592,9 @@ zwei separate DFT-Rechnungen.
 \subsection{NRVS-Theorie soweit relevant f\"ur Bandenidentifikation}
 \label{sec:nrvs}
 
-Das Tool berechnet \emph{nicht} NRVS-Spektren -- das macht
-\texttt{nisspec3} (siehe \S\ref{sec:nisspec-link}). Aber die in
+Das Tool berechnet \emph{nicht} NRVS-Spektren -- diese werden mit
+spezialisierten externen Werkzeugen aus derselben DFT-Frequenzrechnung
+synthetisiert. Aber die in
 \S\ref{sec:reorg} berechneten Modulations-Spektren $M_X(\omega)$ und
 kumulativen Reorg-Kurven $\Lambda_X(\omega)$ sind direkt mit
 NRVS-Banden vergleichbar -- darum brauchen wir die NRVS-Theorie als
@@ -1822,10 +1744,10 @@ mit Fe). Das ist gerade in PCET-Studien interessant.
 % ENDE NEUE THEORIE-KAPITEL
 % =========================================================================
 
-\subsection{Mode-aufgel\"oste Bindungs-Reorganisations-Energien (v3.7)}
+\subsection{Mode-aufgel\"oste Bindungs-Reorganisations-Energien}
 \label{sec:reorg}
 
-In v3.7.0 hat \texttt{modenanalyse\_2fe2s} einen \emph{konzeptionellen
+Das Paket nutzt einen \emph{konzeptionellen
 Pivot} vollzogen: weg von einer Klassifikation einzelner Modes als
 "`PCET-Kandidat"' (mit Schwellen, Filtern, $\tanh$-S\"attigung), hin
 zur direkten Berechnung mode-aufgel\"oster Bindungs-Reorganisations-
@@ -1958,7 +1880,7 @@ das H bleibt fest, aber die Distanz $|\mathbf{r}_H - \mathbf{r}_A|$
 \"andert sich -- und w\"urde als HA-Modulation gez\"ahlt, obwohl es
 keinen PT-Charakter hat.
 
-In v3.7.1 wurde dies korrigiert. Die HA-Modulation misst die
+Die HA-Modulation misst die
 \emph{Bewegung des H relativ zum Donor-N}, projiziert auf die
 N$\to$Akzeptor-Achse:
 \begin{equation}
@@ -1986,7 +1908,7 @@ diesem H haengt genau ein dominanter H-Bridge-Akzeptor (typischerweise
 ein H$_2$O, Carbonyl-O eines Backbones, oder ein Asp/Glu-O).
 
 \paragraph{Wirkung des Gauss-Gewichts.}
-Seit v3.7.4 wird das Gauss-Gewicht
+Das Gauss-Gewicht wird
 $w = \exp\bigl(-(r_{\text{eq}} - r_0)^2/(2\sigma^2)\bigr)$
 \emph{ausschlie{\ss}lich} f\"ur die Hauptakzeptor-Auswahl verwendet --
 nicht mehr als D\"ampfungs-Faktor in der Lambda-Aggregation. Die binaere
@@ -1997,12 +1919,6 @@ entf\"allt der Kanal. Die geometrische D\"ampfung weiter Akzeptoren
 ergibt sich automatisch aus den kleineren $\Delta r_{HA}$-Werten
 (weite H-Bridges modulieren ohnehin schwach), zus\"atzliche
 Multiplikation mit $w < 1$ w\"are doppelte Strafe.
-
-In v3.7.1--v3.7.3 wurde die Lambda-Aggregation mit $w$ multipliziert.
-Dadurch waren Lambda$_{HA}$-Werte bei Akzeptoren mit
-$r_{\text{eq}} > 2.8$\,\AA{} systematisch zu klein. Bei v3.7.4-L\"aufen
-ist Lambda$_{HA}$ entsprechend gr\"o{\ss}er als bei v3.7.1--v3.7.3-L\"aufen
-desselben Systems.
 
 \subsubsection*{Reduzierte Masse: zwei Konventionen}
 
@@ -2025,7 +1941,7 @@ f\"ur die reduzierte Masse:
         f\"ur die Summe in Gl.~\ref{eq:marcus-hush}.
 \end{itemize}
 
-In v3.7 werden beide ausgegeben (Spalten \texttt{lambda\_X\_pair\_cm1}
+Beide werden ausgegeben (Spalten \texttt{lambda\_X\_pair\_cm1}
 und \texttt{lambda\_X\_mode\_cm1} im Sheet
 \texttt{Reorganisationsenergie}). F\"ur die System-Aggregation in
 \texttt{Reorg\_Total} wird $\mu_\text{mode}$ verwendet.
@@ -2123,35 +2039,6 @@ Vier Sheets pro Lauf bzw.\ Frequenzfenster:
         f\"ur direkten Vergleich mit NRVS-Spektren.
 \end{itemize}
 
-\subsubsection*{Was im Code NICHT (mehr) drin ist}
-
-Das v3.6-Kapitel \emph{PCET- und ET-Multi-Feature-Score} mit
-$P_\text{CPET}$, $P_\text{PT}$, $P_\text{ET}$, der drei-Komponenten-
-Konstruktion (Mode-Modulation $\times$ Lokalisierung $\times$
-Cluster-Kopplung), $\tanh$-S\"attigung und Klassifikationsschwellen
-"`stark"' / "`moderat"' wurde in v3.7.0 vollst\"andig entfernt. Die
-zugeh\"origen TOML-Parameter (\texttt{pcet\_strong\_threshold},
-\texttt{pcet\_moderate\_threshold}, \texttt{cpet\_lambda0\_cm1},
-\texttt{pt\_lambda0\_cm1}, \texttt{et\_lambda0\_cm1},
-\texttt{pcet\_dr\_normalization\_a}, \texttt{pcet\_band\_edges\_cm1})
-werden seit v3.7.3 ignoriert (mit Warnung), damit alte TOMLs nicht
-crashen. Sheets \texttt{CPET\_Kandidaten}, \texttt{PT\_Kandidaten},
-\texttt{ET\_Kandidaten}, \texttt{CPET\_Pfade} existieren nicht mehr.
-
-\paragraph{Wissenschaftliche Begr\"undung des Pivots.}
-Die fr\"uhere Score-Konstruktion war ein "`Composite''-Score, der
-versuchte, drei Eigenschaften (Modulation, Lokalisation,
-Kopplungsst\"arke) in eine einzige Zahl pro Mode zu pressen. Die
-Schwellen "`stark $> 0.5$"', "`moderat $> 0.2$"' hatten jedoch keinen
-physikalischen Bezug -- sie waren empirisch so kalibriert, dass eine
-"`typische CPET-Mode"' $\sim 0.5$ erreicht. Das ist
-system-abh\"angig (nicht zwischen Strukturen vergleichbar) und lenkt
-vom eigentlichen Befund ab: \emph{Frequenzbereiche}, in denen viele
-Modes simultan mehrere Bindungen modulieren, sind bedeutsamer als
-einzelne "`Top-Modes"'. Marcus-Hush-Reorg ist konzeptuell sauberer,
-zwischen Strukturen vergleichbar (Werte in cm$^{-1}$), und liefert
-direkt die Gr\"o{\ss}e, die in der Marcus-Rate eingeht.
-
 
 \subsection{HP/Standard-Frequenz-Konsistenzcheck}
 \label{sec:hp-std}
@@ -2219,70 +2106,6 @@ Regel ohnehin wegen $\omega < $ Threshold ausgeschlossen.
 \addcontentsline{toc}{section}{Referenzen}
 % =========================================================================
 
-\part{NIS- und Thermodynamik-Theorie -- siehe \texttt{nisspec3}}
-\label{part:nis-theorie}
-% =========================================================================
-
-\begin{infobox}
-\textbf{Wichtige \"Anderung in v3.4 (Mai 2026):}
-Die Berechnung von NIS-Spektren, Fe-pDOS, Lamb-M\"o\ss bauer-Faktoren
-und thermodynamischen Parametern wurde aus \texttt{modenanalyse\_2fe2s}
-\textbf{entfernt}. \texttt{modenanalyse\_2fe2s} fokussiert sich jetzt
-ausschlie\ss lich auf die \emph{Mode-Klassifikation} der schweren Atome
-([2Fe-2S]-Cluster und Liganden): OOP/INP-Charakter, SCSD-Symmetrie-
-Zerlegung, Kern-Scores, Marcus-Hush-Reorganisationsenergien (v3.7),
-UMAP-Embedding mit HDBSCAN-Clustering. Diese Aufspaltung folgte der
-Beobachtung, dass beide Schritte
-(Mode-Klassifikation und NIS-Spektren-Synthese) auf derselben Logdatei
-ablaufen, aber unabh\"angig voneinander n\"utzlich sind.
-
-Wer NIS-Spektren oder Fe-pDOS oder Lamb-M\"o\ss bauer-Faktoren ben\"otigt,
-verwendet das eigenst\"andige Programm \texttt{nisspec3}
-\cite{NisspecHandbuch} parallel auf derselben Logdatei. Die Theorie und
-das Format der Ausgabe sind dort vollst\"andig dokumentiert
-(Maradudin-Bessel-Mehrphonon-Entwicklung, Pulvermittel,
-ina32-Thermodynamik nach Achterhold/Parak/Sturhahn, mit allen Quellen).
-
-Dieses Kapitel wurde bewusst kurz gehalten -- f\"ur die theoretischen
-Grundlagen verweisen wir auf das nisspec3-Handbuch.
-\end{infobox}
-
-\section{Warum die Trennung sinnvoll ist}
-
-\begin{itemize}
-  \item \textbf{Klare Verantwortlichkeiten}: \texttt{modenanalyse\_2fe2s}
-        analysiert die geometrischen und symmetrischen Eigenschaften
-        einzelner Modes; \texttt{nisspec3} berechnet die spektroskopisch
-        beobachtbare Antwort (NIS-Spektrum, pDOS, Thermodynamik).
-  \item \textbf{Unabh\"angige Anwendbarkeit}: Mode-Klassifikation ist
-        n\"utzlich auch ohne NIS (z.\,B.\ f\"ur reine PCET-Studien).
-        Umgekehrt ist NIS-Synthese n\"utzlich auch ohne PCET-Score.
-  \item \textbf{Bessere Wartbarkeit}: zwei kleine, fokussierte Pakete
-        statt eines monolithischen.
-  \item \textbf{Kompatibilit\"at}: \texttt{nisspec3} liest dieselben
-        Gaussian-\texttt{.log}- und ORCA-\texttt{.hess}-Dateien; die
-        Auswertungen sind direkt vergleichbar.
-\end{itemize}
-
-\section{Workflow zur kombinierten Auswertung}
-
-Wenn Sie sowohl Mode-Klassifikation als auch NIS-Spektren wollen,
-laufen zwei separate Programme parallel auf derselben Logdatei:
-
-\begin{lstlisting}[language=bash]
-# Mode-Klassifikation (PCET, OOP/INP, SCSD, Embeddings)
-modenanalyse-2fe2s run.toml
-
-# NIS-Spektrum + Fe-pDOS + thermodynamische Parameter
-nisspec3 -i mein_lauf.log -o nisspec_output/ -T 5,80,300
-\end{lstlisting}
-
-Die Ausgaben werden in unabh\"angige Verzeichnisse geschrieben und
-k\"onnen separat ausgewertet werden.
-
-
-
-
 \part{Anwendung}
 % =========================================================================
 
@@ -2322,7 +2145,7 @@ listen die Felder gruppiert nach Funktion auf.
 \subsection{Vollst\"andige Parameter-Referenz}
 \label{sec:param-referenz}
 
-Die folgende \"Ubersicht zeigt alle 53 Konfigurationsfelder mit ihren
+Die folgende \"Ubersicht zeigt alle 48 Konfigurationsfelder mit ihren
 Default-Werten. Ausf\"uhrliche Beschreibungen und Empfehlungen siehe
 unten in den Themen-Abschnitten.
 
@@ -2371,19 +2194,6 @@ unter \texttt{run\_example\_full.toml} im Distributions-Verzeichnis.}
 \texttt{mode\_type\_threshold}      & \texttt{60.0\,\%}    & OOP \\
 \texttt{mode\_type\_detail\_thresholds} & \texttt{(60, 75, 90)} & OOP \\
 \midrule
-% ── NIS ─────────────────────────────────────────────────
-\texttt{analyze\_nis}               & \texttt{True}        & NIS \\
-\texttt{nis\_lineshape}             & \texttt{"gauss"}     & NIS \\
-\texttt{nis\_fwhm\_gauss}           & \texttt{8.07} cm$^{-1}$ & NIS \\
-\texttt{nis\_fwhm\_lorentz}         & \texttt{0.0} cm$^{-1}$  & NIS \\
-\texttt{nis\_n\_points}             & \texttt{2000}        & NIS \\
-\texttt{nis\_freq\_min}             & \texttt{None}        & NIS \\
-\texttt{nis\_freq\_max}             & \texttt{None}        & NIS \\
-\texttt{nis\_phonon\_order}         & \texttt{1}           & NIS \\
-\texttt{nis\_n\_theta}              & \texttt{10}          & NIS \\
-\texttt{nis\_split\_elastic}        & \texttt{True}        & NIS \\
-\texttt{nis\_inmemory\_max\_atom\_modes} & \texttt{5e7}    & NIS \\
-\midrule
 % ── SCSD/SS ─────────────────────────────────────────────
 \texttt{analyze\_scsd}              & \texttt{True}        & SCSD \\
 \texttt{analyze\_ss}                & \texttt{True}        & SCSD \\
@@ -2428,7 +2238,7 @@ unter \texttt{run\_example\_full.toml} im Distributions-Verzeichnis.}
 \endhead
 \texttt{log\_file}      & \emph{(Pflicht)} & Pfad zur DFT-Frequenz-
   Datei. Unterst\"utzt: Gaussian-16 \texttt{.log} (mit/ohne
-  \texttt{freq=hpmodes}) und ORCA \texttt{.hess} (ab v3.3, automatisch
+  \texttt{freq=hpmodes}) und ORCA \texttt{.hess} (automatisch
   erkannt an der Endung). \\
 \texttt{output\_dir}    & \emph{(Pflicht)} & Zielverzeichnis. Wird
   angelegt falls nicht vorhanden. \\
@@ -2455,20 +2265,17 @@ unter \texttt{run\_example\_full.toml} im Distributions-Verzeichnis.}
   F\"ur NRVS-relevante Auswertung typischerweise 800. \\
 \texttt{freq\_windows}  & \texttt{None} & Liste von Fenstern wie
   \texttt{[(0, 100), (100, 300), \ldots]}. Wenn gesetzt, generiert das
-  Programm \emph{ein Excel pro Fenster} (Multi-Window-Modus). NIS und
-  pDOS werden dennoch global \"uber alle Modes berechnet (siehe
-  \S\ref{sec:nis}). \\
+  Programm \emph{ein Excel pro Fenster} (Multi-Window-Modus). \\
 \bottomrule
 \end{longtable}
 
 \begin{infobox}
 \textbf{Konvention.} \texttt{freq\_max} (und \texttt{freq\_min}) gelten
-auch f\"ur die NIS- und pDOS-Auswertung. Da $^{57}$Fe-projizierte
-Beitr\"age oberhalb $\sim$800 cm$^{-1}$ verschwindend klein sind und
-NRVS-Experimente in dem Bereich messen, ist eine 800-cm$^{-1}$-Grenze
-sowohl experimentell als auch numerisch sinnvoll. Vergleichbarkeit mit
-``ina32''-Outputs bleibt gewahrt, sofern dort ebenfalls bei $\sim$800
-cm$^{-1}$ getrunkiert wird.
+auch f\"ur s\"amtliche Reorg- und Aggregat-Auswertungen. Da
+$^{57}$Fe-projizierte Beitr\"age oberhalb $\sim$800 cm$^{-1}$
+verschwindend klein sind und NRVS-Experimente in dem Bereich messen,
+ist eine 800-cm$^{-1}$-Grenze sowohl experimentell als auch numerisch
+sinnvoll.
 \end{infobox}
 
 \subsection{Thermik}
@@ -2546,37 +2353,6 @@ cm$^{-1}$ getrunkiert wird.
 \bottomrule
 \end{longtable}
 
-\subsection{NIS-Parameter (an \texttt{nisspec3} delegiert)}
-
-\begin{longtable}{p{0.27\textwidth} p{0.16\textwidth} p{0.50\textwidth}}
-\toprule
-\textbf{Feld} & \textbf{Default} & \textbf{Beschreibung} \\
-\midrule
-\endhead
-\texttt{analyze\_nis}     & \texttt{True} & NIS-/pDOS-Analyse aktivieren. \\
-\texttt{nis\_lineshape}   & \texttt{"gauss"} & Linienprofil:
-  \texttt{"gauss"}, \texttt{"lorentz"} oder \texttt{"voigt"}. Voigt
-  ist die NRVS-Standardwahl bei kombinierter instrumenteller (Gauss)
-  und phononischer (Lorentz) Verbreiterung. \\
-\texttt{nis\_fwhm\_gauss} & \texttt{8.07} & Gauss-FWHM in cm$^{-1}$
-  (entspricht 1.0 meV instrumenteller Aufl\"osung). \\
-\texttt{nis\_fwhm\_lorentz} & \texttt{0.0} & Lorentz-FWHM in cm$^{-1}$
-  (Phononen-Lebenszeit-Verbreiterung; experimentell 0.5--2.0). \\
-\texttt{nis\_n\_points}   & \texttt{2000}  & Frequenzgitter-Punkte
-  zwischen \texttt{nis\_freq\_min} und \texttt{nis\_freq\_max}. \\
-\texttt{nis\_freq\_min}, \texttt{nis\_freq\_max} & \texttt{None}     &
-  Eigenes Frequenzgitter f\"ur NIS, falls von der Modenanalyse abweichend.
-  \texttt{None} \"ubernimmt \texttt{freq\_min}/\texttt{freq\_max}. \\
-\texttt{nis\_phonon\_order} & \texttt{1} & Maximaler Phononen-Order
-  in der Maradudin-Entwicklung. 1 = nur 1-Phonon (Standard), 2 = mit
-  Obert\"onen, 3 = mit Drei-Phonon (selten n\"otig, $O(N^3)$). \\
-\texttt{nis\_n\_theta}    & \texttt{10}   & Theta-St\"utzstellen f\"ur das
-  Pulvermittel. 10 ist der nisspec2-Default und meist ausreichend. \\
-\texttt{nis\_split\_elastic} & \texttt{True} & Elastische Linie und
-  inelastisches Spektrum getrennt schreiben. \\
-\bottomrule
-\end{longtable}
-
 \subsection{SCSD und Sekund\"arstruktur}
 
 \begin{longtable}{p{0.27\textwidth} p{0.16\textwidth} p{0.50\textwidth}}
@@ -2619,13 +2395,6 @@ cm$^{-1}$ getrunkiert wird.
   ergibt feine Banden bei vertretbarer Datei-Gr\"o{\ss}e. \\
 \bottomrule
 \end{longtable}
-
-\paragraph{Veraltete v3.6-Parameter} (werden seit v3.7.3 mit Warnung
-ignoriert, damit alte TOMLs nicht crashen): \texttt{pcet\_dr\_normalization\_a},
-\texttt{pcet\_strong\_threshold}, \texttt{pcet\_moderate\_threshold},
-\texttt{pcet\_band\_edges\_cm1}, \texttt{cpet\_lambda0\_cm1},
-\texttt{pt\_lambda0\_cm1}, \texttt{et\_lambda0\_cm1}. Diese geh\"orten
-zur fr\"uheren Score-Konstruktion (siehe \S\ref{sec:reorg}).
 
 \subsection{Numerische Parameter}
 
@@ -2678,10 +2447,6 @@ zur fr\"uheren Score-Konstruktion (siehe \S\ref{sec:reorg}).
 \bottomrule
 \end{longtable}
 
-\paragraph{Veralteter v3.7.1-Parameter} (wird seit v3.7.2 mit
-Warnung ignoriert): \texttt{tsne\_perplexity}. t-SNE und PCA wurden
-in v3.7.2 entfernt; siehe \S\ref{sec:embeddings}.
-
 \subsection{Sonstiges}
 
 \begin{longtable}{p{0.27\textwidth} p{0.16\textwidth} p{0.50\textwidth}}
@@ -2721,6 +2486,105 @@ mehreren Tippfehlern in der Konfiguration.
 Drei typische Szenarien sind im Folgenden vollst\"andig durchgespielt:
 ein einzelnes Cluster (Standard-Anwendung), Multi-Cluster (Glutaredoxin-Dimere mit zwei
 Clustern), und ein WT-vs.-Mut-Vergleich (PCET-Validierungs-Test).
+
+% -------------------------------------------------------------------------
+\subsection{Wie startet man einen Lauf?}
+\label{sec:workflow-how-to-start}
+
+Es gibt zwei \"aquivalente Wege, eine Analyse zu starten:
+programmatisch aus Python (\texttt{run\_analysis(cfg)}) oder \"uber
+die Kommandozeile mit einer TOML-Konfigurationsdatei. Der TOML-Weg
+wird f\"ur reproduzierbare Produktions-L\"aufe empfohlen, weil die
+Konfiguration selbsterkl\"arend ist und versionskontrolliert werden
+kann.
+
+\subsubsection*{TOML + CLI (empfohlen)}
+
+Der grundlegende Aufruf:
+
+\begin{lstlisting}[style=bash]
+modenanalyse-2fe2s mein_lauf.toml
+\end{lstlisting}
+
+Der Pfad zur TOML-Datei ist das \emph{erste positionale Argument}
+-- ein \texttt{-{}-config}-Flag ist nicht n\"otig. Das Paket kann
+auch eine annotierte Vorlage erzeugen:
+
+\begin{lstlisting}[style=bash]
+modenanalyse-2fe2s --write-template mein_lauf.toml
+# mein_lauf.toml nach Bedarf anpassen
+modenanalyse-2fe2s mein_lauf.toml
+\end{lstlisting}
+
+\subsubsection*{Pfad-Stolperfallen in TOML}
+
+TOML-Strings mit doppelten Anf\"uhrungszeichen interpretieren
+Backslashes als Escape-Zeichen, sodass Windows-Pfade wie
+\texttt{"D:\textbackslash{}Daten\textbackslash{}datei.log"} einen
+Parser-Fehler ausl\"osen (``Unescaped backslash in a string'' o.\,\"a.).
+Drei g\"ultige Alternativen:
+
+\begin{lstlisting}[style=bash]
+# 1. Forward Slashes (funktioniert auch auf Windows):
+log_file = "D:/Daten/datei.log"
+
+# 2. Einfache Anfuehrungszeichen = TOML literal string (kein Escaping):
+log_file = 'D:\Daten\datei.log'
+
+# 3. Escapte Backslashes:
+log_file = "D:\\Daten\\datei.log"
+\end{lstlisting}
+
+\begin{warnbox}
+\textbf{Wichtig.} Pythons Raw-String-Pr\"afix \texttt{r"..."} ist
+\emph{keine} g\"ultige TOML-Syntax. Wenn Pfade aus Python-Code
+(z.\,B.\ \texttt{r"D:\textbackslash{}Daten\textbackslash{}datei.log"})
+in eine TOML-Datei kopiert werden, muss das \texttt{r}-Pr\"afix
+entfernt und eine der drei obigen Formen verwendet werden. Das ist
+eine h\"aufige Stolperfalle f\"ur Nutzer, die von
+\texttt{run\_analysis()}-Aufrufen auf TOML-basierte Konfiguration
+umsteigen.
+\end{warnbox}
+
+\subsubsection*{CLI-Overrides}
+
+CLI-Argumente k\"onnen einzelne TOML-Felder \"uberschreiben, ohne
+dass die Datei editiert werden muss -- n\"utzlich f\"ur
+Parameter-Scans:
+
+\begin{lstlisting}[style=bash]
+# mein_lauf.toml verwenden, aber temp_k = 40 K erzwingen:
+modenanalyse-2fe2s mein_lauf.toml --temp-k 40.0
+
+# mein_lauf.toml verwenden, aber in ein anderes Output-Verzeichnis schreiben:
+modenanalyse-2fe2s mein_lauf.toml --output-dir ./results_test
+\end{lstlisting}
+
+Eine vollst\"andige Liste der verf\"ugbaren CLI-Flags zeigt
+\texttt{modenanalyse-2fe2s -{}-help}.
+
+\subsubsection*{Programmatische API}
+
+F\"ur interaktive Analyse (z.\,B.\ in Spyder oder Jupyter) kann
+dieselbe Konfiguration direkt erstellt werden:
+
+\begin{lstlisting}[style=python]
+from modenanalyse_2fe2s import Config, run_analysis
+
+cfg = Config(
+    log_file   = r"D:\Daten\system_freq.log",  # Python-Raw-String hier OK
+    pdb_file   = r"D:\Daten\system.pdb",
+    output_dir = r"D:\Daten\results",
+    temp_k     = 5.0,
+    freq_max   = 800.0,
+)
+run_analysis(cfg)
+\end{lstlisting}
+
+Beachten: in \emph{Python-Quellcode} (\texttt{.py}-Dateien) sind
+\texttt{r"..."}-Raw-Strings \emph{erlaubt} und die empfohlene Form
+f\"ur Windows-Pfade. Die Einschr\"ankung auf nicht-Raw-Strings gilt
+nur f\"ur TOML-Konfigurationsdateien.
 
 % -------------------------------------------------------------------------
 \subsection{Szenario A: Einzelnes Cluster (Standard-Anwendung)}
@@ -2774,14 +2638,7 @@ Jeder Ordner enth\"alt:
         His-HN, Info, ...)
   \item \texttt{cluster\_wt\_freq\_pDOS\_interp.xlsx} -- interpolierte
         Fe-pDOS, Origin-kompatibel
-  \item \texttt{BEFUND.txt} -- Plain-Text-Lauf-Protokoll
-\end{itemize}
-
-Au\ss erdem im Hauptverzeichnis:
-
-\begin{itemize}
-  \item \texttt{cluster\_wt\_freq\_analysis\_NIS.xlsx} -- globales NIS-/Thermo-Sheet
-        (\"uber alle Modes berechnet)
+  \item \texttt{cluster\_wt\_freq\_REPORT.txt} -- Plain-Text-Lauf-Protokoll (Befund)
 \end{itemize}
 
 \subsubsection*{Was zuerst pr\"ufen}
@@ -2876,13 +2733,13 @@ die Anzahl der Cluster zu bestimmen. Dann l\"auft die volle Pipeline
 results/
   cluster_0/
     0-800_cm-1/
-      *_BEFUND.txt
+      *_REPORT.txt
       *_analysis.xlsx
       *_analysis_Embeddings.xlsx
       ...
   cluster_1/
     0-800_cm-1/
-      *_BEFUND.txt
+      *_REPORT.txt
       *_analysis.xlsx
       ...
   multi_cluster_summary.txt
@@ -2968,7 +2825,7 @@ run_analysis(Config(
 \begin{lstlisting}[style=bash]
 [INFO] PCET-Reorg: aktiv (2 His-Liganden, 4 H-Bond-Akzeptoren).
        Marcus-Hush-Reorg fuer 5 Kanaele: FeFe, FeN, FeS, NH, HA.
-       HA im Reaktionskoordinaten-Modus (v3.7.1).
+       HA im Reaktionskoordinaten-Modus.
 \end{lstlisting}
 
 \textbf{Mut-Befund:}
@@ -3081,7 +2938,7 @@ und schnellste Workflow.
 
 \subsubsection*{Schritt 2: Cluster-Erkennung}
 
-Aus dem BEFUND-File:
+Aus dem REPORT-File (Befund):
 \begin{lstlisting}[basicstyle=\ttfamily\small]
   28 schwere Atome (52 gesamt mit H)
   Cluster...
@@ -3123,7 +2980,7 @@ Aus dem BEFUND-File:
 
 \subsubsection*{Schritt 3: Mode-Loop und Reorg-Aggregation}
 
-Aus dem BEFUND-File:
+Aus dem REPORT-File (Befund):
 \begin{lstlisting}[basicstyle=\ttfamily\small]
   Phase 3: Block-Metadaten
     HP-Gruppen: 30  |  Standard-Gruppen: 50
@@ -3336,10 +3193,9 @@ reproduzierbar.
 \section{Ausgabe-Sheets}
 \label{sec:ausgabe}
 
-Pro Lauf entstehen drei Excel-Workbooks: das \emph{Hauptauswertungs-Excel}
-mit allen modenbezogenen Sheets, das \emph{NIS-Excel} mit Spektrum und
-Thermodynamik, sowie das \emph{interpolierte pDOS-Excel}. Hier die
-\"Ubersicht.
+Pro Lauf entstehen zwei Excel-Workbooks: das \emph{Hauptauswertungs-Excel}
+mit allen modenbezogenen Sheets sowie das \emph{interpolierte pDOS-Excel}.
+Hier die \"Ubersicht.
 
 \subsection{Hauptauswertungs-Excel: Modenbezogene Sheets}
 
@@ -3450,7 +3306,7 @@ Thermodynamik, sowie das \emph{interpolierte pDOS-Excel}. Hier die
 
 \texttt{Projektionen} & UMAP-Koordinaten pro Mode (zwei Spalten:
   \texttt{UMAP\_Dim1}, \texttt{UMAP\_Dim2}). PCA und t-SNE wurden in
-  v3.7.2 entfernt; Begr\"undung in \S\ref{sec:embeddings}. \\
+  nicht enthalten; Begr\"undung in \S\ref{sec:embeddings}. \\
 
 \texttt{UMAP\_Cluster} & HDBSCAN-Cluster-Zuordnung pro Mode auf
   Basis des UMAP-Embeddings. Spalten: Frequenz, Mode-Typ,
@@ -3491,62 +3347,11 @@ Thermodynamik, sowie das \emph{interpolierte pDOS-Excel}. Hier die
 \bottomrule
 \end{longtable}
 
-\subsection{NIS-Excel}
-
-\begin{longtable}{p{0.27\textwidth} p{0.68\textwidth}}
-\toprule
-\textbf{Sheet} & \textbf{Inhalt} \\
-\midrule
-\endhead
-
-\texttt{NIS\_Spektrum} & Simuliertes NIS-Spektrum. Spalten: Energie
-  in meV und cm$^{-1}$, Spektrum f\"ur jede konfigurierte Temperatur
-  (\texttt{cfg.temp\_k\_nis}), getrennt in elastisch und inelastisch
-  (wenn \texttt{nis\_split\_elastic = True}). Direkt nisspec3-konform
-  \"uber den \texttt{nis}-Adapter berechnet. \\
-
-\texttt{NIS\_Intensitaeten} & Diskrete Intensit\"aten (vor Verbreiterung)
-  pro Mode mal Temperatur. Erlaubt die Identifikation einzelner
-  Modes als Linien im NIS-Spektrum. \\
-
-\texttt{Fe\_pDOS\_Spektrum} & Fe-projizierte pDOS auf dem
-  NIS-Frequenzgitter, mit Lineshape verbreitert. \\
-
-\texttt{Fe\_pDOS\_diskret} & Diskrete pDOS-Eintr\"age vor Verbreiterung
-  (eine Linie pro Mode). \\
-
-\texttt{Thermodynamik} & Tabelle der thermodynamischen Gr\"o\ss en pro
-  Temperatur: $\fLM$, $\langle x^2_\Fei\rangle$ (1D),
-  $\langle k_\Fei\rangle$, $c_V$, Entropie, mittlere Phononenenergie.
-  Alle Werte mit expliziten 1D-pro-Fe-Annotationen
-  (siehe \texttt{nisspec3}-Handbuch). \\
-
-\texttt{Info} & Wie im Hauptauswertungs-Excel, aber NIS-spezifisch
-  (Linienprofil, Phononen-Order, Theta-Punkte, ...). \\
-\bottomrule
-\end{longtable}
-
-\subsection{Interpoliertes pDOS-Excel}
-
-\begin{longtable}{p{0.27\textwidth} p{0.68\textwidth}}
-\toprule
-\textbf{Sheet} & \textbf{Inhalt} \\
-\midrule
-\endhead
-
-\texttt{Interpoliert} & pDOS auf gleichm\"a\ss igem Gitter (Schrittweite
-  \texttt{cfg.interp\_step}, Default 0.05 cm$^{-1}$), f\"ur direktes
-  Plotten in Origin oder Gnuplot. \\
-
-\texttt{Info} & Lauf-Metadaten. \\
-\bottomrule
-\end{longtable}
-
 \subsection{Plain-Text-Befund}
 \label{sec:befund}
 
 Neben den Excel-Dateien wird im Output-Verzeichnis ein
-Plain-Text-Befund (\texttt{BEFUND.txt}) geschrieben. Inhalt:
+Plain-Text-Befund (\texttt{*\_REPORT.txt}) geschrieben. Inhalt:
 
 \begin{itemize}
   \item Programm-Version, Aufruf-Datum, vollst\"andige Konfiguration
@@ -3556,9 +3361,9 @@ Plain-Text-Befund (\texttt{BEFUND.txt}) geschrieben. Inhalt:
         Bindungsl\"angen, Protonierungs-Status)
   \item Kabsch-Alignment-RMSD
   \item Sekund\"arstruktur-Statistik
-  \item PCET-/ET-Score-Aktivierung mit Diagnose
   \item Anzahl Modes pro Frequenzfenster
-  \item NIS-Konsistenz-Check (pDOS-Normierung, HP/Std-Differenzen)
+  \item Marcus-Hush-Reorg-Diagnose (aktive Kan\"ale, integrale
+        $\Lambda_X$-Werte)
   \item Vollst\"andige Liste aller Warnungen und Fehler aus dem Lauf
 \end{itemize}
 
@@ -3586,9 +3391,7 @@ funktionalen Bereichen sortiert.
 
 \texttt{config} & 684 & Konfigurations-Datenklasse \texttt{Config}
   mit allen 47 Feldern, Validierungslogik (\texttt{cfg.validate()}),
-  Default-Werte. Backward-Compat: alte v3.6/v3.7.x-TOMLs werden mit
-  Warnung statt Crash akzeptiert (\texttt{\_legacy\_silent\_drop}).
-  Siehe \S\ref{sec:konfig}. \\
+  Default-Werte. Siehe \S\ref{sec:konfig}. \\
 
 \texttt{logio} & 1441 & Gaussian-Logfile-Reader (Block-Scan mit Cache,
   Eigenvektor-Parser, HP/Std-Konsistenzpr\"ufung), PDB-Reader,
@@ -3608,29 +3411,24 @@ funktionalen Bereichen sortiert.
   (\texttt{extract\_dominant\_scsd\_irreps}). Ruft
   \texttt{reorganization} fuer die Marcus-Hush-Modulationen auf. \\
 
-\texttt{reorganization} & 1096 & Marcus-Hush-Reorg-Pipeline (v3.7).
+\texttt{reorganization} & 1096 & Marcus-Hush-Reorg-Pipeline.
   Pro Mode geometrische Modulationen $\Delta r_X$ und
   $\lambda_X = \tfrac{1}{2}\mu\omega^2(\Delta r)^2$ fuer FeFe, FeN,
-  FeS, NH, HA. HA im Reaktionskoordinaten-Modus (v3.7.1), ohne
-  Gauss-Daempfung in der Aggregation (v3.7.4).
+  FeS, NH, HA. HA im Reaktionskoordinaten-Modus, ohne
+  Gauss-Daempfung in der Aggregation.
   System-Aggregation: Total-Reorg, Modulations-Spektren $M_X(\omega)$,
   kumulative Lambdas $\Lambda_X(\omega)$. Siehe \S\ref{sec:reorg}. \\
 
 \texttt{pcet\_et} & 311 & Geometrie-Adapter fuer die
   Reorg-Pipeline. Atomgruppen-Bau (\texttt{build\_pcet\_info},
-  \texttt{build\_et\_info}), H-Bond-Akzeptor-Suche.
-  Score-Berechnung wurde in v3.7.0 entfernt; der Marcus-Hush-Pivot
-  ist im Modul \texttt{reorganization} implementiert. \\
+  \texttt{build\_et\_info}), H-Bond-Akzeptor-Suche. \\
 
 \texttt{embedding} & 603 & UMAP-Embedding der 31-dim
   Feature-Matrix; HDBSCAN-Clusterung; SS-bezogene
-  Embedding-Variante. PCA und t-SNE wurden in v3.7.2 entfernt
-  (siehe \S\ref{sec:embeddings}). \\
+  Embedding-Variante (siehe \S\ref{sec:embeddings}). \\
 
 \texttt{export} & 2063 & Excel-Schreiber fuer 25 Sheet-Typen,
-  Stilformatierung (Mode-Typ-F\"arbung), Plot-Generierung.
-  v3.6-Score-Sheets in v3.7.3 entfernt; tote NIS-Sheet-Funktionen
-  in v3.7.5 entfernt ($\sim 191$ Zeilen). \\
+  Stilformatierung (Mode-Typ-F\"arbung), Plot-Generierung. \\
 
 \texttt{runner} & 1341 & Hauptablauf:
   \texttt{run\_analysis(cfg)}-Funktion, orchestriert Logfile-Scan
@@ -3638,8 +3436,8 @@ funktionalen Bereichen sortiert.
   Reorg-Aggregation $\to$ Embedding $\to$ Export. Multi-Window-
   Modus mit Reorg-Aggregaten pro Fenster. \\
 
-\texttt{orca\_io} & 319 & ORCA-\texttt{.hess}-Reader (eigenstaendig
-  ab v3.4). \\
+\texttt{orca\_io} & 319 & ORCA-\texttt{.hess}-Reader (eigenst\"andiger
+  Parser). \\
 
 \texttt{cli} & 251 & argparse-basierter Kommandozeilen-Wrapper.
   Befehl \texttt{modenanalyse-2fe2s} ist hier registriert. \\
@@ -3669,33 +3467,6 @@ funktionalen Bereichen sortiert.
   \item \texttt{export} schreibt das Haupt-Excel mit allen Sheets und
         den Befund.
 \end{enumerate}
-
-\subsection{Wo welche Hardening-Punkte sitzen}
-
-\begin{center}
-\begin{tabularx}{\textwidth}{l X l}
-\toprule
-\textbf{Punkt v3.0} & \textbf{Zweck} & \textbf{Modul} \\
-\midrule
-\#1, \#4 & SCSD nach Kingsbury, rigorose Klassifikation
-                                & \texttt{core} \\
-\#2      & Anharmonische Korrektur entfernt
-                                & \texttt{core} \\
-\#6      & 7-Stufen-Mode-Klassifikation
-                                & \texttt{core} \\
-\#8      & PCET-/ET-Multi-Feature-Score
-                                & \texttt{pcet\_et} \\
-\#9, \#15 & Thermodynamik 1D/3D, Fe-only-Klarstellung
-                                & \texttt{nis} \\
-\#10     & Multi-Cluster-Erkennung
-                                & \texttt{geometry} \\
-\#11     & HP/Standard-Frequenz-Konsistenzpr\"ufung
-                                & \texttt{logio} \\
-\#12     & \texttt{analyze\_his\_hn} Scope-Fix
-                                & \texttt{core} \\
-\bottomrule
-\end{tabularx}
-\end{center}
 
 % =========================================================================
 \section{Validierung und UMAP -- Anwendungshinweise}
@@ -3762,34 +3533,7 @@ Diagnosen.
 
 \subsection{Installation}
 
-\subsubsection*{``Could not find a version that satisfies the requirement
-nisspec3'' bei pip install}
-
-Tritt auf, wenn \texttt{modenanalyse\_2fe2s} \emph{allein} (ohne das
-\texttt{nisspec3}-Wheel) installiert wird. Pip sucht nach
-\texttt{nisspec3} auf PyPI und findet es nicht (es ist nur lokal als
-Wheel verf\"ugbar). \emph{L\"osung}: beide Wheels in \emph{einem}
-\texttt{pip install}-Aufruf:
-
-\begin{lstlisting}[style=bash]
-pip install nisspec3-1.0.21-py3-none-any.whl modenanalyse_2fe2s-3.0.0-py3-none-any.whl
-\end{lstlisting}
-
-Oder das mitgelieferte Setup-Skript: Doppelklick auf
-\texttt{install.bat}, oder in PowerShell \texttt{.\textbackslash install.ps1}.
-
-\subsubsection*{``Invalid wheel filename''}
-
-PEP 427 verlangt Punkte in Versionsnummern. Wenn die Datei
-\texttt{nisspec3-1\_0\_21-...} (Unterstriche) hei\ss t, einfach
-umbenennen:
-
-\begin{lstlisting}[style=bash]
-ren nisspec3-1_0_21-py3-none-any.whl nisspec3-1.0.21-py3-none-any.whl
-\end{lstlisting}
-
-\subsubsection*{``ModuleNotFoundError: No module named 'nisspec3''' nach
-erfolgter Installation}
+\subsubsection*{``ModuleNotFoundError'' nach erfolgter Installation}
 
 Der Python-Kernel l\"auft noch mit dem Stand von \emph{vor} der
 Installation. \emph{L\"osung}: Kernel neu starten (Spyder:
@@ -4550,7 +4294,6 @@ Buchstaben, dann griechische, dann Sonderzeichen.
   \textbf{Symbol} & \textbf{Bedeutung} & \textbf{Einheit / Wertebereich} \\
   \midrule
   $a, b, c$       & Atom-Indizes        & $1, \ldots, N_\text{atoms}$ \\
-  $A_l$           & Lamb-M\"o{\ss}bauer-Amplitude (NRVS, in nisspec3) & dimensionslos \\
   $B$             & Debye-Waller-Tensor / B-Faktor & $\angstrom^2$ \\
   $c$             & Lichtgeschwindigkeit & $2.998 \times 10^{10}$\,cm/s \\
   $\mathcal{C}$   & Menge der Cluster-Atome (Fe + S$_\text{bridge}$) & $|\mathcal{C}| = 4$ \\
@@ -4561,7 +4304,6 @@ Buchstaben, dann griechische, dann Sonderzeichen.
   $E$             & Energie & J oder cm$^{-1}$ \\
   $f_\text{LM}$   & Lamb-M\"o{\ss}bauer-Faktor & $[0, 1]$ \\
   $\mathbf{F}$    & Frequenz-Vektor & cm$^{-1}$ \\
-  $g_\text{Fe}$   & Geglaettete Fe-pDOS (in nisspec3) & cm$^{-1}$ \\
   $h$             & Plancksches Wirkungsquantum & $6.626 \times 10^{-34}$\,Js \\
   $\hbar$         & Reduzierte Planck-Konstante & $h/(2\pi)$ \\
   $H$             & Hesse-Matrix der Kraftkonstanten & $\text{a.u.}$ in Gaussian \\
@@ -4578,7 +4320,6 @@ Buchstaben, dann griechische, dann Sonderzeichen.
   $S$             & Huang-Rhys-Faktor & dimensionslos \\
   $T$             & Temperatur & K \\
   $u_\text{rms}$  & RMS-Amplitude einer Mode (QHO-Erwartungswert) & $\angstrom$ \\
-  $w_l$           & pDOS-Gewicht des Atoms $l$ (in nisspec3) & dimensionslos \\
   $X, Y, Z$       & Bindungs-Kanal-Index & $\in \{\text{FeFe, FeN, FeS, NH, HA}\}$ \\
   \bottomrule
 \end{tabular}
@@ -4790,7 +4531,7 @@ entsprechen.
 $f_\text{LM} = \exp(-2W)$, mit $W$ dem Debye-Waller-Faktor des
 M\"o{\ss}bauer-aktiven Kerns ($^{57}$Fe). Misst, welcher Anteil
 der Resonanzabsorption ohne Phononen-Anregung erfolgt
-(elastischer Anteil im NRVS-Spektrum). Berechnung in nisspec3.
+(elastischer Anteil im NRVS-Spektrum).
 
 \paragraph{Marcus-Hush-Theorie.}
 Klassische Theorie des Elektronentransfers (Marcus 1956,
@@ -4814,9 +4555,9 @@ Synchrotron-Spektroskopie an M\"o{\ss}bauer-aktiven Kernen
 (typisch $^{57}$Fe). Misst $^{57}$Fe-projizierte
 Vibrations-Zustandsdichte. Komplement\"ar zu Raman/IR
 (elementselektiv, nicht symmetrieselektiv). Im Tool wird
-nicht das NRVS-Spektrum selbst berechnet (das macht nisspec3),
-sondern die Reorg-Beitr\"age, die zur Bandenidentifikation
-genutzt werden koennen.
+nicht das NRVS-Spektrum selbst berechnet, sondern die
+Reorg-Beitr\"age, die zur Bandenidentifikation genutzt
+werden koennen.
 
 \paragraph{OOP (Out-of-Plane).}
 Mode-Auslenkung \"uberwiegend senkrecht zur Cluster-Ebene
@@ -5756,12 +5497,6 @@ R.~A. Marcus, N.~Sutin,
 \emph{Electron transfers in chemistry and biology},
 \textbf{Biochim.\ Biophys.\ Acta} \textbf{811}, 265--322 (1985).
 
-\bibitem{NisspecHandbuch}
-L.~Knauer,
-\emph{nisspec3 -- Handbook},
-AG Sch\"unemann, RPTU Kaiserslautern-Landau (2026);
-mitgeliefert mit dem nisspec3-Paket.
-
 \bibitem{Sturhahn1999}
 W.~Sturhahn, V.~G.~Kohn,
 \emph{Theoretical aspects of incoherent nuclear resonant scattering},
@@ -5918,7 +5653,7 @@ T.~Kuroda, S.~Hammes-Schiffer,
 Recent insights from theory},
 \textbf{Curr.\ Opin.\ Electrochem.} \textbf{29}, 100789 (2021).
 
-% --- v3.5: PCET/ET-Literatur, Eisen-Schwefel-Spektroskopie ------------
+% --- PCET/ET-Literatur, Eisen-Schwefel-Spektroskopie ------------------
 
 \bibitem{HammesSchifferSoudackov2008}
 S.~Hammes-Schiffer, A.~V.~Soudackov,
@@ -5971,7 +5706,7 @@ A.~Albers, S.~Demeshko, S.~Dechert, C.~T.~Saouma, J.~M.~Mayer, F.~Meyer,
 structural and functional {[}2Fe-2S{]} {Rieske} model},
 \textbf{J.\ Am.\ Chem.\ Soc.} \textbf{136}, 3946--3954 (2014).
 
-% --- v3.5: Methodische Quellen fuer Vibrationsanalyse -------------------
+% --- Methodische Quellen fuer Vibrationsanalyse -----------------------
 
 \bibitem{Cyvin1968}
 S.~J.~Cyvin,

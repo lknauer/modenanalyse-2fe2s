@@ -1,12 +1,11 @@
 # install.ps1 - Installs modenanalyse_2fe2s into the current Python environment.
-# v1.0.0: nisspec3 is no longer required. UMAP/HDBSCAN/SCSD are
-#         installed automatically as dependencies.
+# UMAP/HDBSCAN/SCSD are installed automatically as dependencies.
 
 Set-Location -Path $PSScriptRoot
 
 Write-Host ""
 Write-Host "==========================================================="
-Write-Host "  modenanalyse_2fe2s v1.0.0 - Installation" -ForegroundColor Cyan
+Write-Host "  modenanalyse_2fe2s - Installation" -ForegroundColor Cyan
 Write-Host "==========================================================="
 Write-Host ""
 
@@ -22,7 +21,6 @@ Write-Host ""
 # Remove old versions
 Write-Host "Removing previous versions if present..."
 pip uninstall -y modenanalyse_2fe2s 2>$null
-pip uninstall -y nisspec3 2>$null
 Write-Host ""
 
 # Fresh installation; dependencies will be pulled automatically from PyPI
@@ -47,6 +45,8 @@ python -c "import umap"    2>$null; if ($LASTEXITCODE -eq 0) { Write-Host "  uma
 python -c "import hdbscan" 2>$null; if ($LASTEXITCODE -eq 0) { Write-Host "  hdbscan          OK" } else { Write-Host "  hdbscan          MISSING" -ForegroundColor Yellow }
 python -c "import scsdpy"  2>$null; if ($LASTEXITCODE -eq 0) { Write-Host "  scsdpy           OK" } else { Write-Host "  scsdpy           MISSING" -ForegroundColor Yellow }
 Write-Host ""
-Write-Host "First run:  modenanalyse-2fe2s --write-template run.toml"
+Write-Host "First run:"
+Write-Host "  modenanalyse-2fe2s --write-template run.toml   (creates a template)"
+Write-Host "  modenanalyse-2fe2s run.toml                    (runs the analysis)"
 Write-Host ""
 pause

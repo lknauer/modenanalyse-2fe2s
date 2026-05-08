@@ -1,8 +1,8 @@
 # modenanalyse_2fe2s
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](CHANGELOG.md)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Version](https://img.shields.io/badge/version-1.0.1-green.svg)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-94%20passing-brightgreen.svg)](tests/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20074194.svg)](https://doi.org/10.5281/zenodo.20074194)
 
@@ -31,11 +31,13 @@ For each normal mode, the tool computes:
 - **SCSD symmetry-coordinate decomposition** of the cluster core
   into $D_{2h}$ irreps (after Kingsbury & Senge, 2024).
 - **PCET score** with hydrogen-bond detection via donor-acceptor geometry.
-- **31-feature mode embeddings** with PCA / UMAP and HDBSCAN clustering.
+- **31-feature mode embeddings** with UMAP and HDBSCAN clustering.
 
 System-level aggregates (total $\Lambda_X = \sum_i \lambda_X(i)$ per channel)
-plus full per-mode breakdowns are written to a 25-sheet Excel workbook
-(Origin-compatible) with publication-quality matplotlib plots (300 DPI).
+plus full per-mode breakdowns are written to multi-sheet Excel workbooks
+(Origin-compatible; a typical run produces 11–16 sheets in the main
+analysis workbook depending on whether a PDB is supplied) with
+publication-quality matplotlib plots (300 DPI).
 
 ## Multi-cluster support (first-class)
 
@@ -49,7 +51,7 @@ each cluster's geometry and run status.
 ## Installation
 
 ```bash
-pip install modenanalyse_2fe2s-1.0.0-py3-none-any.whl
+pip install modenanalyse_2fe2s-1.0.1-py3-none-any.whl
 ```
 
 Or from source:
@@ -70,8 +72,15 @@ For a hands-on 15-minute introduction, see [`docs/QUICKSTART.md`](docs/QUICKSTAR
 ### From a config file (recommended)
 
 ```bash
-modenanalyse-2fe2s --config examples/full_template.toml
+modenanalyse-2fe2s examples/full_template.toml
 ```
+
+The TOML file is the first positional argument — no `--config` flag needed.
+
+> **Windows users:** in TOML, paths must use either forward slashes
+> (`"D:/Data/file.log"`) or single quotes for backslashes
+> (`'D:\Data\file.log'`). Python-style raw strings (`r"..."`) are
+> **not** valid TOML and will produce a parser error.
 
 ### Programmatic API
 
@@ -88,7 +97,7 @@ cfg = Config(
 run_analysis(cfg)
 ```
 
-### Command-line interface
+### Command-line interface (without TOML)
 
 ```bash
 modenanalyse-2fe2s \
@@ -99,10 +108,16 @@ modenanalyse-2fe2s \
     --freq-max 800.0
 ```
 
+CLI arguments can also override individual fields when a TOML is given:
+
+```bash
+modenanalyse-2fe2s run.toml --temp-k 40.0   # uses run.toml but at 40 K
+```
+
 For multi-cluster systems:
 
 ```bash
-modenanalyse-2fe2s --config examples/multi_cluster_template.toml
+modenanalyse-2fe2s examples/multi_cluster_template.toml
 ```
 
 ## Output structure
@@ -110,10 +125,10 @@ modenanalyse-2fe2s --config examples/multi_cluster_template.toml
 ```
 results/
 └── 0-800_cm-1/
-    ├── system_BEFUND.txt              # human-readable run report
-    ├── system_analysis.xlsx           # 25-sheet Origin-compatible workbook
-    ├── system_analysis_Embeddings.xlsx
-    ├── system_analysis_NIS.xlsx       # PVDOS spectra
+    ├── system_REPORT.txt                 # human-readable run report
+    ├── system_analysis.xlsx              # main workbook (16 sheets)
+    ├── system_analysis_Embeddings.xlsx   # UMAP + HDBSCAN
+    ├── system_analysis_interp0.05.xlsx   # interpolated pDOS
     └── plots/
         ├── lambda_total_per_channel.png
         ├── pdos_combined.png
@@ -131,18 +146,19 @@ results/
 
 ## Documentation
 
-The English documentation comes in two complementary formats:
+The documentation comes in two complementary formats:
 
 - **`docs/Manual.pdf`** (17 pages) -- a purpose-written English overview
   covering theory, configuration, output reference, multi-cluster
   workflow, validation, and troubleshooting. Recommended starting point
   for new users.
-- **`docs/Manual_full_EN.pdf`** (103 pages) -- a complete translation of
-  the original German manual, with the same depth and structure as the
-  German edition. Recommended for users who want the full reference and
-  detailed validation discussion. (Note: this is a machine-assisted
-  translation; the canonical reference for technical details remains
-  the German `Manual_DE.pdf`.)
+- **`docs/Manual_DE.pdf`** (96 pages) -- the complete reference manual
+  in German, with full theory, algorithm details, configuration
+  reference, output documentation, and an extensive glossary. The
+  authoritative source for technical depth.
+
+A complete English translation of the full manual is in preparation and
+will be added in a future release.
 
 For a 15-minute hands-on introduction, see
 [`docs/QUICKSTART.md`](docs/QUICKSTART.md).
@@ -161,7 +177,7 @@ English; some longer passages may still contain German residuals from
 the original development. Public API names (functions, classes,
 parameters) are all in English.
 
-A German edition of this package (`modenanalyse_2fe2s_v1.0.0_de.zip`) is
+A German edition of this package (`modenanalyse_2fe2s_v1.0.1_de.zip`) is
 available with German user-facing strings. Both editions produce
 **numerically identical** output for the same input. See
 `docs/SHEET_MAPPING_DE_EN.md` for a side-by-side mapping of sheet names,
@@ -188,17 +204,18 @@ python -m pytest tests/ -m slow        # smoke tests (~80 sec)
 
 ## Citation
 
-If you use `modenanalyse_2fe2s` in your research, please cite this
-specific version (v1.0.0):
+If you use `modenanalyse_2fe2s` in your research, please cite the
+software using its concept DOI (which always resolves to the latest
+released version):
 
 > Knauer, L. (2026). *modenanalyse_2fe2s: Mode-resolved bonding
 > reorganization analysis for [2Fe-2S] iron-sulfur clusters from DFT
-> frequency calculations* (Version 1.0.0) [Software]. Zenodo.
-> https://doi.org/10.5281/zenodo.20074193
+> frequency calculations* [Software]. Zenodo.
+> https://doi.org/10.5281/zenodo.20074194
 
-To cite the software in general (always resolving to the latest
-version), use the **concept DOI**:
-[10.5281/zenodo.20074194](https://doi.org/10.5281/zenodo.20074194).
+For citing a specific version, use the version-DOI listed on the
+[Zenodo record](https://doi.org/10.5281/zenodo.20074194). The DOI
+for v1.0.0 is [10.5281/zenodo.20074193](https://doi.org/10.5281/zenodo.20074193).
 
 BibTeX:
 
@@ -211,9 +228,9 @@ BibTeX:
   month        = may,
   year         = 2026,
   publisher    = {Zenodo},
-  version      = {1.0.0},
-  doi          = {10.5281/zenodo.20074193},
-  url          = {https://doi.org/10.5281/zenodo.20074193}
+  version      = {1.0.1},
+  doi          = {10.5281/zenodo.20074194},
+  url          = {https://doi.org/10.5281/zenodo.20074194}
 }
 ```
 

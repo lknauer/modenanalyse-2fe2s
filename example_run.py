@@ -13,7 +13,7 @@ Typical Spyder/IPython/Jupyter use:
 Alternatively via TOML configuration (recommended for reproducible
 runs -- see examples/full_template.toml):
 
-    modenanalyse-2fe2s --config full_template.toml
+    modenanalyse-2fe2s full_template.toml
 """
 
 from modenanalyse_2fe2s import Config, run_analysis

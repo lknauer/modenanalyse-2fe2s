@@ -11,18 +11,18 @@ authors:
     family-names: Knauer
     affiliation: >-
       AG Schünemann, Department of Physics, RPTU Kaiserslautern-Landau
-version: "1.0.0"
+version: "1.0.1"
 date-released: "2026-05-07"
 license: GPL-3.0-or-later
-doi: 10.5281/zenodo.20074193
-url: "https://doi.org/10.5281/zenodo.20074193"
+doi: 10.5281/zenodo.20074194
+url: "https://doi.org/10.5281/zenodo.20074194"
 identifiers:
-  - type: doi
-    value: 10.5281/zenodo.20074193
-    description: Zenodo DOI for v1.0.0 (this specific version)
   - type: doi
     value: 10.5281/zenodo.20074194
     description: Zenodo concept DOI (always resolves to the latest version)
+  - type: doi
+    value: 10.5281/zenodo.20074193
+    description: Zenodo DOI for v1.0.0 (the previous version)
 keywords:
   - quantum-chemistry
   - normal-mode-analysis

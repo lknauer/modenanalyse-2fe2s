@@ -2,17 +2,21 @@
 # modenanalyse_2fe2s -- Complete configuration reference
 # =============================================================================
 #
-# This file shows ALL 53 configuration fields with their defaults.
+# This file shows ALL 48 configuration fields with their defaults.
 # Fields with '#' at the start are commented out and use the default value.
 # Required fields are without '#' and MUST be customized:
 #   * input.log_file
 #   * input.output_dir
 #
-# Paths on Windows: forward slashes or doubled backslashes:
-#   "D:/data/system.log"   or   "D:\\data\\system.log"
+# Paths on Windows: TOML strings in double quotes interpret backslashes
+# as escape characters. Use one of these three forms:
+#   "D:/data/system.log"      forward slashes (works on Windows too)
+#   'D:\data\system.log'      single quotes = TOML literal string (no escaping)
+#   "D:\\data\\system.log"    escaped backslashes
+# Note: Python's r"..." raw-string syntax is NOT valid TOML.
 #
-# A minimal template (only required fields + the most important options)
-# can be generated via: modenanalyse-2fe2s --write-template run.toml
+# Run via:        modenanalyse-2fe2s run.toml
+# Get template:   modenanalyse-2fe2s --write-template run.toml
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -35,8 +39,8 @@ logname_suffix = ""                        # Suffix for multiple runs from same 
 freq_max   = 800.0        # Upper filter bound (cm^-1). Default: None.
                           # RECOMMENDED: 800 (= NRVS measurement window; saves ~70% runtime)
 
-# Optional: multi-window mode. One Excel subfolder per window.
-# NIS and pDOS are still computed globally over all modes.
+# Optional: multi-window mode. One Excel subfolder per window;
+# the cluster/embedding analysis is run independently within each window.
 # freq_windows = [[0, 100], [100, 300], [300, 500], [500, 700]]
 
 # -----------------------------------------------------------------------------
@@ -99,13 +103,12 @@ significance_threshold_low  = 1.0
 significance_threshold_high = 3.0
 
 # -----------------------------------------------------------------------------
-# [nis]   REMOVED in v3.4
+# [nis]   not part of this tool
 # -----------------------------------------------------------------------------
-# NIS calculations were removed from modenanalyse_2fe2s -- modenanalyse
-# focuses on mode classification. For NIS spectra or Fe-pDOS,
-# call nisspec3 separately on the same log file.
-# The former analyze_nis/nis_* fields are still parsed but
-# ignored (backward compatibility for old TOMLs).
+# NIS spectra and Fe-pDOS are not produced by modenanalyse_2fe2s.
+# This package focuses on mode classification and Marcus-Hush
+# reorganization energies. The former analyze_nis/nis_* fields are
+# still parsed but ignored (backward compatibility for old TOMLs).
 
 # -----------------------------------------------------------------------------
 [scsd]
@@ -119,21 +122,18 @@ ss_chain      = ""         # Restrict to which PDB chain (empty = pdb_chain)
 [pcet]
 # -----------------------------------------------------------------------------
 
-pcet_enabled                = true     # Compute PCET and ET score
-pcet_hbond_cutoff_a         = 4.0      # H-bond acceptor search radius from H atom (Angstrom)
-pcet_dr_normalization_a     = 0.05     # Saturation scale for tanh(|dr|/d0). Default 0.05 A.
-                                       # At dr=0.05 A: tanh~0.76 (76%); at 0.10 A: 96%
-pcet_strong_threshold       = 0.5      # Candidate is "strong" if P_PCET or P_ET >= 0.5
-pcet_moderate_threshold     = 0.2      # Candidate is "moderate" if >= 0.2
-pcet_band_edges_cm1         = [200.0, 500.0, 800.0]   # Window edges for PCET frequency bands
+pcet_enabled                = true     # Enable Marcus-Hush reorganization pipeline.
+                                       # Computes per-mode lambda_X for the channels
+                                       # FeFe, FeN, FeS, NH, HA. Set to false to skip
+                                       # the entire reorganization analysis.
+pcet_hbond_cutoff_a         = 4.0      # H-bond acceptor search radius from the H atom (Angstrom)
 
 # -----------------------------------------------------------------------------
 [embedding]
 # -----------------------------------------------------------------------------
 
-export_embedding_plots = true       # Generate PNGs (PCA, t-SNE, UMAP). Default: true
+export_embedding_plots = true       # Generate UMAP embedding PNG. Default: true
 # umap_n_neighbors     = 15         # Default: None (auto heuristic: max(5, min(15, N//100)))
-# tsne_perplexity      = 15         # Default: None (auto heuristic analogous to UMAP)
 
 # -----------------------------------------------------------------------------
 [numerics]

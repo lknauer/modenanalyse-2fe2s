@@ -21,7 +21,7 @@ Programmatic usage::
 
 TOML-based usage::
 
-    modenanalyse-2fe2s --config run.toml
+    modenanalyse-2fe2s run.toml
 """
 from __future__ import annotations
 
@@ -552,10 +552,10 @@ class Config:
             "pcet_dr_normalization_a", "pcet_strong_threshold",
             "pcet_moderate_threshold", "pcet_band_edges_cm1",
             "cpet_lambda0_cm1", "pt_lambda0_cm1", "et_lambda0_cm1",
-            # v3.7.1 PCA/tSNE/UMAP_Basis (entfernt in v3.7.2)
+            # legacy embedding parameters (removed when t-SNE was dropped)
             "tsne_perplexity",
-            # v3.4-v3.7.4 NIS-Felder (entfernt in v3.7.5);
-            # NIS-Berechnungen erfolgen exclusively in nisspec3.
+            # legacy NIS fields (NIS calculations are not part of this tool;
+            # use a dedicated NIS package on the same log file).
             "analyze_nis", "nis_fwhm_gauss", "nis_fwhm_lorentz",
             "nis_lineshape", "nis_n_points", "nis_freq_min", "nis_freq_max",
             "nis_phonon_order", "nis_n_theta", "nis_split_elastic",
@@ -565,8 +565,8 @@ class Config:
         for _k in list(flat.keys()):
             if _k in _legacy_silent_drop:
                 _w.warn(
-                    f"TOML: key '{_k}' is veraltet and is ignoriert. "
-                    f"Fuer NIS-Spektren bitte nisspec3 separat verwenden.",
+                    f"TOML: key '{_k}' is obsolete and ignored. "
+                    f"NIS spectra are not produced by this tool.",
                     UserWarning, stacklevel=2)
                 flat.pop(_k)
 
@@ -651,8 +651,8 @@ class Config:
             raise TypeError(f"No TOML serializer for type {type(v)}: {v!r}")
 
         lines: List[str] = [
-            "# modenanalyse_2fe2s -- Konfiguration",
-            f"# Creates with to_toml() von Version {__version__}",
+            "# modenanalyse_2fe2s -- configuration",
+            f"# Created with to_toml() from version {__version__}",
             "",
         ]
         used = set()
@@ -691,9 +691,8 @@ class Config:
             f.write("\n".join(lines) + "\n")
 
 
-__version__ = "1.0.0"  # v1.0.0: Erstes oeffentliches Release. Konsolidiert the interne v3.x-Entwicklungsreihe (zuletzt v3.7.5) to Doktorarbeits-Veroeffentlichung. Inhaltlich identical with v3.7.5: NIS-Cleanup, ORCA-Pipeline-Fixes, mNT-H87C-validation. Backward-Compat: alte v3.6/v3.7.x-TOMLs laufen with UserWarning.
-# entfernt (v3.6-PCET-Scores: pcet_dr_normalization_a, pcet_strong/moderate
-# _threshold, pcet_band_edges_cm1, cpet/pt/et_lambda0_cm1; v3.7.1: tsne_
-# perplexity). pcet_v36.py-Modul (1715 Z.) and v3.6-Sheet-functions in
-# export.py (633 Z.) entfernt. Backward-Compat: alte v3.6-TOMLs werden
-# with Warnung akzeptiert, crashen nicht.
+__version__ = "1.0.1"
+# v1.0.1: Documentation cleanup release. No code changes — analysis
+# pipeline is identical to v1.0.0 and produces numerically identical
+# results. See CHANGELOG.md for the full list of documentation fixes.
+# v1.0.0 (2026-05-07): First public release.

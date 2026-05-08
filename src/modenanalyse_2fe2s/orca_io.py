@@ -1,15 +1,14 @@
 # Copyright (C) 2026 Lukas Knauer, AG Schünemann, RPTU Kaiserslautern-Landau
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Teil von modenanalyse_2fe2s — see LICENSE in the Wurzelverzeichnis.
+# Part of modenanalyse_2fe2s — see LICENSE in the project root.
 
 """
-ORCA format-Adapter (v3.4+, standalone, without nisspec3-Abhaengigkeit).
+ORCA format adapter (standalone, no external dependencies beyond numpy).
 
-Dieses Modul implementiert einen eigenen ORCA-``.hess``-Parser sowie
-die Bruecken-functions, the ORCA-Daten in the runner-interne Format
-ueberfuehren.
+This module implements its own ORCA ``.hess`` parser plus the bridge
+functions that convert ORCA data into the runner-internal format.
 
-Format-Spezifikation (ORCA 5.x, 6.x)
+Format specification (ORCA 5.x, 6.x)
 ------------------------------------
 A ``.hess`` file besteht from with Dollarzeichen gekennzeichneten
 blocksn, beendet through ``$end``. Wir parsen folgende blocks:

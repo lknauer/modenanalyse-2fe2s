@@ -1,6 +1,6 @@
 % =========================================================================
 % modenanalyse_2fe2s -- English Manual
-% Version 1.0.0 (May 2026)
+% Version 1.0.1 (May 2026)
 % =========================================================================
 \documentclass[11pt,a4paper,twoside]{article}
 
@@ -53,11 +53,11 @@
 
 \usepackage{fancyhdr}
 \pagestyle{fancy}
-\fancyhead[LE,RO]{\small\textsl{modenanalyse\_2fe2s v1.0.0 -- Manual}}
+\fancyhead[LE,RO]{\small\textsl{modenanalyse\_2fe2s v1.0.1 -- Manual}}
 \fancyhead[LO,RE]{}
 \fancyfoot[C]{\thepage}
 
-\title{modenanalyse\_2fe2s\\ \large Manual (Version 1.0.0)}
+\title{modenanalyse\_2fe2s\\ \large Manual (Version 1.0.1)}
 \author{Lukas Knauer\\ AG Sch\"unemann, RPTU Kaiserslautern-Landau}
 \date{May 2026}
 
@@ -70,7 +70,7 @@
   \begin{center}
     \vspace*{2cm}
     {\Huge\bfseries\color{accent} modenanalyse\_2fe2s}\\[0.4cm]
-    {\large Version 1.0.0}\\[2cm]
+    {\large Version 1.0.1}\\[2cm]
 
     \rule{\textwidth}{0.4pt}\\[0.3cm]
     {\LARGE\bfseries Manual and Theoretical Documentation}\\[0.3cm]
@@ -348,7 +348,7 @@ and oxidation states.
 The package ships as a Python wheel:
 
 \begin{lstlisting}
-pip install modenanalyse_2fe2s-1.0.0-py3-none-any.whl
+pip install modenanalyse_2fe2s-1.0.1-py3-none-any.whl
 \end{lstlisting}
 
 Dependencies are pulled in automatically (numpy, scipy, pandas,
@@ -385,7 +385,7 @@ For reproducibility, prefer TOML configuration files:
 \begin{lstlisting}
 modenanalyse-2fe2s --write-template my_run.toml
 # edit my_run.toml as needed
-modenanalyse-2fe2s --config my_run.toml
+modenanalyse-2fe2s my_run.toml
 \end{lstlisting}
 
 The TOML file documents itself and is git-friendly.
@@ -820,8 +820,8 @@ will have a permanent DOI:
 \begin{lstlisting}
 Knauer, L. (2026). modenanalyse_2fe2s: Mode-resolved bonding
 reorganization analysis for [2Fe-2S] iron-sulfur clusters from DFT
-frequency calculations (Version 1.0.0) [Software].
-DOI: 10.5281/zenodo.20074193 (this version) / 10.5281/zenodo.20074194 (concept)
+frequency calculations (Version 1.0.1) [Software].
+DOI: 10.5281/zenodo.20074194 (concept; always resolves to latest)
 \end{lstlisting}
 
 \subsection{Scientific references}

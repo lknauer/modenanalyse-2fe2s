@@ -1488,7 +1488,7 @@ def analyze_mode(bi:          BlockInfo,
                 import warnings as _w_reorg
                 _mn_p = bi.mode_nums[col] if col < len(bi.mode_nums) else "?"
                 _w_reorg.warn(
-                    f"v3.7 Reorg-Berechnung fehlgeschlagen "
+                    f"Reorg computation failed "
                     f"(Mode {_mn_p} @ {freq:.2f} cm-1): "
                     f"{type(_exc_reorg).__name__}: {_exc_reorg}.",
                     UserWarning, stacklevel=2)

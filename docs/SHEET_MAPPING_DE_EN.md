@@ -6,7 +6,7 @@ Origin or Excel post-processing scripts between the two versions.
 
 ## Workbook 1: `*_analysis.xlsx`
 
-| German (v1.0.0_de)         | English (v1.0.0_en)       | Content                                               |
+| German (DE edition)         | English (EN edition)       | Content                                               |
 |----------------------------|---------------------------|-------------------------------------------------------|
 | `Modenanalyse`             | `Mode_analysis`           | Per-mode summary (freq, sym, type, OOP%, INP%, etc.)  |
 | `Kern_Scores`              | `Core_scores`             | Cluster-core mode scores (in-plane + out-of-plane)    |
@@ -61,13 +61,16 @@ classification labels:
 
 ## Output filename mapping
 
-| German (v1.0.0_de)         | English (v1.0.0_en)        |
+| German (DE edition)         | English (EN edition)        |
 |----------------------------|----------------------------|
-| `*_BEFUND.txt`             | `*_REPORT.txt`             |
+| `*_REPORT.txt`             | `*_REPORT.txt`             |
 | `*_analysis.xlsx`          | `*_analysis.xlsx`          |
 | `*_analysis_Embeddings.xlsx` | `*_analysis_Embeddings.xlsx` |
-| `*_analysis_NIS.xlsx`      | `*_analysis_NIS.xlsx`      |
 | `*_analysis_interp*.xlsx`  | `*_analysis_interp*.xlsx`  |
+
+Both versions produce identical filenames; in the German manual,
+`*_REPORT.txt` is referred to as the *Befund*-Datei (a German
+domain term meaning "diagnostic report").
 
 ## Notes
 
