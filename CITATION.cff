@@ -1,54 +1,44 @@
-cff-version: 1.2.0
-title: >-
-  modenanalyse_2fe2s: Mode-resolved bonding reorganization analysis
-  for [2Fe-2S] iron-sulfur clusters from DFT frequency calculations
-message: >-
-  If you use this software in a scientific publication,
-  please cite as below.
+﻿cff-version: 1.2.0
+message: "If you use this software, please cite it using these metadata."
 type: software
+title: "modenanalyse_2fe2s: Mode-resolved bonding reorganization analysis for [2Fe-2S] iron-sulfur clusters from DFT frequency calculations"
 authors:
-  - given-names: Lukas
-    family-names: Knauer
-    affiliation: >-
-      AG Schünemann, Department of Physics, RPTU Kaiserslautern-Landau
+  - family-names: "Knauer"
+    given-names: "Lukas"
+    affiliation: "AG Schünemann, Department of Physics, RPTU Kaiserslautern-Landau"
+    email: "lukas@knauernet.de"
+abstract: >-
+  Python program for mode-resolved bonding reorganization analysis of
+  [2Fe-2S] iron-sulfur clusters from Gaussian-16 or ORCA-6 frequency
+  calculations. Computes thermally scaled bond modulations and the
+  associated reorganization contributions in Marcus-Hush form, with a
+  special reaction-coordinate mode for hydrogen bonds (PCET-relevant).
 version: "1.0.1"
-date-released: "2026-05-07"
+date-released: "2026-05-08"
 license: GPL-3.0-or-later
-doi: 10.5281/zenodo.20074194
-url: "https://doi.org/10.5281/zenodo.20074194"
+doi: 10.5281/zenodo.20074193
+url: "https://doi.org/10.5281/zenodo.20074193"
 identifiers:
   - type: doi
-    value: 10.5281/zenodo.20074194
+    value: 10.5281/zenodo.20074193
     description: Zenodo concept DOI (always resolves to the latest version)
   - type: doi
-    value: 10.5281/zenodo.20074193
-    description: Zenodo DOI for v1.0.0 (the previous version)
+    value: 10.5281/zenodo.20080916
+    description: Zenodo DOI for v1.0.1 (this version)
+  - type: doi
+    value: 10.5281/zenodo.20074194
+    description: Zenodo DOI for v1.0.0 (previous version)
 keywords:
-  - quantum-chemistry
-  - normal-mode-analysis
-  - iron-sulfur-cluster
-  - 2Fe-2S
-  - Rieske-protein
-  - mitoNEET
-  - PCET
-  - proton-coupled-electron-transfer
-  - NRVS
-  - nuclear-resonance-vibrational-spectroscopy
-  - Gaussian
-  - ORCA
-  - reorganization-energy
-  - Marcus-Hush
-abstract: >-
-  Python program for mode-resolved bonding reorganization analysis
-  of [2Fe-2S] iron-sulfur clusters from Gaussian-16 or ORCA-6
-  frequency calculations. For each vibrational mode and each bonding
-  channel (Fe-Fe, Fe-N, Fe-S, N-H, H...acceptor), computes thermally
-  scaled bond modulations Delta r_X and the associated reorganization
-  contributions lambda_X = (1/2) mu omega^2 (Delta r_X)^2 in
-  Marcus-Hush form, with a special reaction-coordinate mode for
-  hydrogen bonds (PCET-relevant). Produces frequency-resolved
-  spectra M_X(omega) and cumulative Lambda_X(omega), a D2h
-  symmetry decomposition after Kingsbury & Senge, plus UMAP
-  embedding with HDBSCAN clustering of the mode feature matrix.
-  Main application: NRVS band identification and system comparisons
-  for Rieske-type proteins and mitoNEET.
+  - "iron-sulfur cluster"
+  - "[2Fe-2S]"
+  - "vibrational spectroscopy"
+  - "NRVS"
+  - "PCET"
+  - "Marcus-Hush"
+  - "Gaussian"
+  - "ORCA"
+  - "DFT"
+  - "reorganization energy"
+  - "Rieske protein"
+  - "mitoNEET"
+repository-code: "https://github.com/lknauer/modenanalyse-2fe2s"
