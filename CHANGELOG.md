@@ -5,6 +5,112 @@ All notable changes to `modenanalyse_2fe2s` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.2] — 2026-05-12
+
+Bug-fix release. One real analysis bug fixed; two diagnostic warnings
+added as defense in depth. The mathematical pipeline is unchanged.
+Systems whose PDB files have no hydrogens interleaved between heavy
+atoms (e.g. the validation system mitoNEET-H87C used in v1.0.0) produce
+numerically identical results to v1.0.1.
+
+### Fixed
+
+- **Index-mismatch bug in `geometry._build_group_map`**.
+  `pdb_to_gaus_h` is keyed by indices into `pdb_data["all_h"]` (the full
+  atom list, hydrogens included), but `_build_group_map` enumerated a
+  pre-filtered `pdb_heavy` list and used those positional indices to
+  look up `pdb_to_gaus_h`. For PDBs where hydrogen atoms appear
+  interleaved between heavy atoms (Apd1 QM/MM hessians, His-NH inline
+  with backbone heavy atoms), the indices silently drift apart starting
+  at the first interleaved hydrogen. This corrupts the per-residue
+  center list for every residue after the drift, and in combination
+  with the eigenvector centers map `c2l` in `core.py` produces residue
+  rows that are 100% zero across all modes in the
+  `Gruppen_OOP/INP/Winkel/Tors` sheets, with no warning.
+
+  Symptom in Apd1 WT runs (v1.0.0 and v1.0.1):
+  - Apd1-prot: `His 259` row is 100% zero in all four `Gruppen_*` sheets
+  - Apd1-deprot: `Cys 207` row is 100% zero in all four `Gruppen_*` sheets
+
+  The fix iterates `pdb_data["all_h"]` (the same list `pdb_to_gaus_h`
+  was built from) and filters out hydrogens inside the comprehension.
+
+- **Companion bug: crystal waters with overlapping residue numbers**.
+  Once the index-mismatch fix above was applied, a second, previously
+  hidden bug surfaced: `_build_group_map` filtered only on `rnum`
+  (residue number), so a crystal water (HOH) placed in a different
+  chain that happens to share a residue number with an amino-acid
+  ligand (common in QM/MM PDB files, where waters are numbered
+  separately and overlap freely with the protein chain) was silently
+  pulled into the ligand's atom group, contaminating its OOP/INP
+  values with a non-zero water contribution.
+
+  In v1.0.0 and v1.0.1 the index-mismatch bug accidentally excluded
+  these HOH atoms by hitting a stale index that fell outside
+  `pdb_to_gaus_h`. With the correct indexing in v1.0.2, the HOH atoms
+  were correctly mapped and thus incorrectly pulled into the group.
+  The combined fix in v1.0.2 also filters on `rname` (residue type),
+  requiring it to match the ligand's residue type (`HIS`, `CYS`, ...).
+  Symptom: in the first v1.0.2 Apd1-prot run, the user observed
+  `His 255: 11 atoms assigned` (10 amino-acid atoms + 1 stray HOH O)
+  and `Cys 216: 7 atoms assigned` (6 + 1 stray HOH O); the second
+  amendment brings these to the expected 10 and 6.
+
+### Added (diagnostic safety nets)
+
+- **Warning in `core.analyze_mode`** when a group in
+  `coord_info.group_map` resolves to zero eigenvector indices. With
+  the index-mismatch fix above this branch should be unreachable for
+  canonical Cys/His systems, but the warning is kept as a safety net
+  for future ligand types (Asp/Glu/Ser/Thr) or unusual PDBs. The
+  warning is deduplicated via a module-level set
+  (`_WARNED_EMPTY_GROUP`) so it fires at most once per group per run,
+  not once per mode (which would mean thousands of duplicates).
+- **Warning in `export._ws_gruppen`** when a residue row in
+  `Gruppen_OOP`, `Gruppen_INP` or `Gruppen_Winkel` ends up all zero
+  across all modes. This catches the same class of silent zero-row
+  bug at the export stage, independent of where the data was lost.
+  Torsion is excluded from this check because its raw values are
+  legitimately small (~10⁻³) and an empty torsion list returns a
+  meaningful 0.
+- **New `core.reset_warning_state()` helper**, called automatically by
+  `_run_analysis_single` before each cluster analysis, to reset the
+  per-run warning deduplication state. Required for long-lived Python
+  sessions (notebooks) that call `run_analysis` repeatedly.
+
+### Tests
+
+- **`tests/test_group_map_indexing.py`** (6 new tests, all passing):
+  - `test_build_group_map_returns_all_heavy_atoms_with_interleaved_hydrogens` —
+    direct regression test that reproduces the Apd1 index-mismatch
+    scenario on a synthetic 9-atom system and verifies all heavy atoms
+    are recovered after the fix
+  - `test_build_group_map_no_interleaved_hydrogens_unchanged` —
+    ensures the canonical "heavy first, then H" PDB layout still works
+  - `test_build_group_map_excludes_overlapping_water` —
+    reproduces the HOH-with-overlapping-rnum scenario on a synthetic
+    11-atom system and verifies the HOH oxygen does NOT leak into the
+    ligand's group_map
+  - `test_warned_empty_group_dedup` — verifies the per-run deduplication
+    of the `_WARNED_EMPTY_GROUP` set
+  - `test_ws_gruppen_warns_on_all_zero_row` — verifies the export-stage
+    warning fires for OOP/INP/Winkel but not Torsion
+  - `test_ws_gruppen_no_warning_when_all_good` — verifies no false
+    positives when all residues have nonzero values
+
+Total test count: 96 unit + 4 E2E smoke = 100 tests, all green.
+
+### Acknowledgements
+
+The bug was found by side-by-side comparison of Apd1 wildtype runs
+(protonated vs deprotonated `[2Fe-2S]` cluster) and a HH255_259CC Cys4
+mutant. The independent diagnosis arrived at the same conclusion from
+two angles: a code-pattern audit of silent `.get(_, {}).get(_, 0)`
+fallbacks in `export.py` (third-party review), and an atom-list
+divergence audit between `_build_group_map` and
+`find_coordinating_residues` (this project). Both pointed at the same
+root cause, which is reassuring: the fix sits where both audits met.
+
 ## [1.0.1] — 2026-05-07
 
 Documentation cleanup and consistency release. **No analysis changes** —

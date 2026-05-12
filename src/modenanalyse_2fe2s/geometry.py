@@ -1077,13 +1077,32 @@ def _build_group_map(
         pdb_to_gaus_h: Dict[int, int],
         runlog=None,
 ) -> Dict[str, List[int]]:
-    """Creates group_map: Residuen-Label → Gaussian-Center list (nur heavy atoms).
+    """Creates group_map: residue label -> list of Gaussian centers (heavy atoms only).
 
-    Wird for the Gruppen-OOP-Analyse (Cys, His, Backbone) used.
-    Jedes Residuum taucht only einmal auf, also if es mehrere ligands hat.
+    Used for the Groups_OOP/INP analysis (Cys, His, backbone, ...).
+    Each residue appears at most once, even if it has multiple coordinating
+    atoms (e.g. bidentate ligation).
+
+    Bug fix (v1.0.2): pdb_to_gaus_h is keyed by PDB-atom indices into
+    ``pdb_data["all_h"]`` (the full atom list, see find_coordinating_residues).
+    Earlier code enumerated a filtered ``pdb_heavy`` list and used those
+    indices to look up ``pdb_to_gaus_h``, which silently drifted out of sync
+    as soon as hydrogens appeared interleaved with heavy atoms in the PDB.
+    For Apd1-like systems with His residues this produced ligand rows that
+    were 100% zero across all modes in the Groups_* sheets, with no
+    warning. We now iterate the same list (``all_h``) that pdb_to_gaus_h was
+    built from, and filter out hydrogens inside the comprehension.
+
+    Bug fix (v1.0.2 follow-up): also filter on ``rname`` (residue type)
+    so that crystal waters (HOH) or hetero atoms that happen to share a
+    residue number with an amino-acid ligand (common in QM/MM PDB files
+    where waters are placed in a separate chain with overlapping rnums)
+    do not get pulled into the ligand's group. Without this, the pre-fix
+    accidental index-drift exclusion would have silently kept HOH out,
+    but with the v1.0.2 root-cause fix HOH atoms with matching rnum
+    would otherwise be incorrectly included.
     """
     group_map: Dict[str, List[int]] = {}
-    pdb_heavy = [a for a in pdb_data["atoms_h"] if not a["is_h"]]
     done: Set[str] = set()
 
     for lig in ligands:
@@ -1091,10 +1110,18 @@ def _build_group_map(
         if lb in done:
             continue
         done.add(lb)
+        # Iterate the SAME list pdb_to_gaus_h was built from (all_h),
+        # filtering hydrogens here. Using a filtered pdb_heavy list would
+        # shift indices relative to pdb_to_gaus_h and silently lose atoms.
+        # Filter on (rnum, rname) jointly: PDB files routinely reuse
+        # residue numbers across chains (e.g. HOH in chain C, rnum 216).
         centers = [
             pdb_to_gaus_h[pi]
-            for pi, a in enumerate(pdb_heavy)
-            if a["rnum"] == lig.res_num and pi in pdb_to_gaus_h
+            for pi, a in enumerate(pdb_data["all_h"])
+            if (not a["is_h"])
+            and a["rnum"] == lig.res_num
+            and a["rname"].upper() == lig.res_name.upper()
+            and pi in pdb_to_gaus_h
         ]
         if centers:
             group_map[lb] = centers
@@ -1103,8 +1130,8 @@ def _build_group_map(
         else:
             import warnings as _w
             _w.warn(
-                f"Group '{lb}': no Gaussian-Center zugeordnet "
-                f"(Kabsch-Matching uncomplete?)", UserWarning)
+                f"Group '{lb}': no Gaussian center assigned "
+                f"(Kabsch matching incomplete?)", UserWarning)
 
     return group_map
 

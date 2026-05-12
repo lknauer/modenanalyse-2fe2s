@@ -1,20 +1,19 @@
-﻿cff-version: 1.2.0
-message: "If you use this software, please cite it using these metadata."
+cff-version: 1.2.0
+title: >-
+  modenanalyse_2fe2s: Mode-resolved bonding reorganization analysis
+  for [2Fe-2S] iron-sulfur clusters from DFT frequency calculations
+message: >-
+  If you use this software in a scientific publication,
+  please cite as below.
 type: software
-title: "modenanalyse_2fe2s: Mode-resolved bonding reorganization analysis for [2Fe-2S] iron-sulfur clusters from DFT frequency calculations"
 authors:
-  - family-names: "Knauer"
-    given-names: "Lukas"
-    affiliation: "AG Schünemann, Department of Physics, RPTU Kaiserslautern-Landau"
-    email: "lukas@knauernet.de"
-abstract: >-
-  Python program for mode-resolved bonding reorganization analysis of
-  [2Fe-2S] iron-sulfur clusters from Gaussian-16 or ORCA-6 frequency
-  calculations. Computes thermally scaled bond modulations and the
-  associated reorganization contributions in Marcus-Hush form, with a
-  special reaction-coordinate mode for hydrogen bonds (PCET-relevant).
-version: "1.0.1"
-date-released: "2026-05-08"
+  - given-names: Lukas
+    family-names: Knauer
+    affiliation: >-
+      AG Schünemann, Department of Physics, RPTU Kaiserslautern-Landau
+    email: lukas@knauernet.de
+version: "1.0.2"
+date-released: "2026-05-12"
 license: GPL-3.0-or-later
 doi: 10.5281/zenodo.20074193
 url: "https://doi.org/10.5281/zenodo.20074193"
@@ -24,21 +23,23 @@ identifiers:
     description: Zenodo concept DOI (always resolves to the latest version)
   - type: doi
     value: 10.5281/zenodo.20080916
-    description: Zenodo DOI for v1.0.1 (this version)
+    description: Zenodo DOI for v1.0.1
   - type: doi
     value: 10.5281/zenodo.20074194
-    description: Zenodo DOI for v1.0.0 (previous version)
+    description: Zenodo DOI for v1.0.0
 keywords:
-  - "iron-sulfur cluster"
-  - "[2Fe-2S]"
-  - "vibrational spectroscopy"
-  - "NRVS"
-  - "PCET"
-  - "Marcus-Hush"
-  - "Gaussian"
-  - "ORCA"
-  - "DFT"
-  - "reorganization energy"
-  - "Rieske protein"
-  - "mitoNEET"
+  - quantum-chemistry
+  - normal-mode-analysis
+  - iron-sulfur-cluster
+  - 2Fe-2S
+  - Rieske-protein
+  - mitoNEET
+  - PCET
+  - proton-coupled-electron-transfer
+  - NRVS
+  - nuclear-resonance-vibrational-spectroscopy
+  - Gaussian
+  - ORCA
+  - reorganization-energy
+  - Marcus-Hush
 repository-code: "https://github.com/lknauer/modenanalyse-2fe2s"

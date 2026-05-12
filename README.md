@@ -2,7 +2,7 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-1.0.1-green.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.0.2-green.svg)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-94%20passing-brightgreen.svg)](tests/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20074194.svg)](https://doi.org/10.5281/zenodo.20074194)
 
@@ -146,19 +146,21 @@ results/
 
 ## Documentation
 
-The documentation comes in two complementary formats:
+The documentation comes in three complementary formats:
 
 - **`docs/Manual.pdf`** (17 pages) -- a purpose-written English overview
   covering theory, configuration, output reference, multi-cluster
   workflow, validation, and troubleshooting. Recommended starting point
   for new users.
-- **`docs/Manual_DE.pdf`** (96 pages) -- the complete reference manual
-  in German, with full theory, algorithm details, configuration
-  reference, output documentation, and an extensive glossary. The
-  authoritative source for technical depth.
-
-A complete English translation of the full manual is in preparation and
-will be added in a future release.
+- **`docs/Manual_EN.pdf`** (95 pages) -- the complete English reference
+  manual, with full theory chapters (NRVS, Marcus-Hush, Huang-Rhys,
+  SCSD, UMAP/HDBSCAN), all 48 configuration fields, four worked
+  workflow scenarios, validation chapter (model matrix +
+  mitoNEET-H87C), troubleshooting, full Excel sheet reference, and
+  bibliography (61 entries).
+- **`docs/Manual_DE.pdf`** (98 pages) -- the original German reference
+  manual; the same content as `Manual_EN.pdf` but with the German
+  glossary and the *Befund*-Datei terminology preserved.
 
 For a 15-minute hands-on introduction, see
 [`docs/QUICKSTART.md`](docs/QUICKSTART.md).

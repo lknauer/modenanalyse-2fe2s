@@ -85,6 +85,7 @@ from .geometry import (
 from .core import (
     analyze_mode_with_fallback, analyze_all_ss,
     compute_scsd_for_mode_full, _get_scsd_model,
+    reset_warning_state,
 )
 from .embedding import (
     build_feature_matrix, compute_embeddings, compute_ss_umap_cluster,
@@ -199,6 +200,11 @@ def _run_analysis_single(cfg: "Config") -> int:
         print("\n[ERROR] Configuration invalid:")
         for e in errs: print(f"  - {e}")
         _abort()
+
+    # Reset per-run warning state (so warnings.warn() in analyze_mode is
+    # emitted at least once per run even when run_analysis() is called
+    # repeatedly from the same Python session, e.g. in a notebook).
+    reset_warning_state()
 
     os.makedirs(cfg.outdir(), exist_ok=True)
     base = os.path.splitext(os.path.basename(cfg.log_file))[0]

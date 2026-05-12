@@ -94,6 +94,23 @@ SCORE_KEYS: List[str] = [
 _SCORE_KEYS = SCORE_KEYS   # Abwaertskompatibilitaet
 
 
+# Set of group names for which the "empty eigenvector" warning has already
+# been issued during the current run. Used by analyze_mode() to suppress
+# duplicate warnings; populated as modes are processed and reset by
+# reset_warning_state() at the start of each run.
+_WARNED_EMPTY_GROUP: Set[str] = set()
+
+
+def reset_warning_state() -> None:
+    """Reset per-run warning state.
+
+    Called by runner.run() before iterating over modes. Without this reset,
+    a long-lived Python session that calls run() repeatedly would only see
+    warnings from the first run.
+    """
+    _WARNED_EMPTY_GROUP.clear()
+
+
 # ===========================================================================
 # Thermische Amplitude  (Bugfix B3: Faktor 2)
 # ===========================================================================
@@ -1312,6 +1329,22 @@ def analyze_mode(bi:          BlockInfo,
     for gname, gctr in coord_info.group_map.items():
         evg_g = _evg_sub(gctr)
         if evg_g.shape[0] == 0:
+            # Diagnostic warning (v1.0.2): the residue is in the group_map
+            # but none of its Gaussian centers are present in the current
+            # eigenvector mapping (c2l). With the v1.0.2 _build_group_map
+            # fix this should be impossible for canonical Cys/His residues,
+            # but we keep the branch as a safety net and emit a warning so
+            # the same class of silent zero-row bug can be caught early in
+            # future systems (e.g. Asp/Glu/Ser/Thr ligation, unusual PDBs).
+            if gname not in _WARNED_EMPTY_GROUP:
+                _WARNED_EMPTY_GROUP.add(gname)
+                n_in_c2l = sum(1 for c in gctr if c in c2l)
+                warnings.warn(
+                    f"Group '{gname}': {len(gctr)} centers in group_map, "
+                    f"but {n_in_c2l} of them are in the eigenvector index. "
+                    f"All Groups_OOP/INP/Winkel/Tors values for this group "
+                    f"will be 0. Check PDB-Gaussian atom matching.",
+                    UserWarning, stacklevel=2)
             group_res[gname] = {k: 0. for k in
                 ("oop","inp","angle","torsion","total","s_oop","s_inp","s_angle","s_tors")}
             continue

@@ -1085,16 +1085,44 @@ def _ws_modenanalyse_voll(wb, results, cfg):
 
 
 def _ws_gruppen(wb, results, gn, E):
-    """Sheet 'Gruppen_OOP': OOP-/INP-Fractione for each atomare Gruppe (Cys, His, Backbone)."""
+    """Sheet 'Gruppen_OOP': OOP-/INP-Fractione for each atomare Gruppe (Cys, His, Backbone).
+
+    Diagnostic (v1.0.2): after writing each sheet, count how many group
+    rows have all zero values. If any row is 100% zero, emit a UserWarning
+    pointing at the most likely cause (PDB-Gaussian atom mapping). The
+    silent fallback ``r["groups"].get(g, {}).get(key, 0.)`` used to mask
+    this class of bug entirely; see CHANGELOG and the Apd1 bug report.
+    """
+    import warnings as _w_grp
     for sh,key,fg in [("Gruppen_OOP","oop","C0392B"),("Gruppen_INP","inp","375623"),
                        ("Gruppen_Winkel","angle","784212"),("Gruppen_Tors","torsion","6A0572")]:
         ws=wb.create_sheet(sh)
         _hc(ws,1,1,"Gruppe",14,fg)
         for ji,r in enumerate(results,2): _hc(ws,1,ji,f"{r['freq']:.2f}",9,fg)
+        # Track per-group all-zero rows so we can warn the user (instead
+        # of silently writing 0 across all modes).
+        all_zero_groups: list = []
         for ri,g in enumerate(gn,2):
             ws.cell(ri,1,g).font=Font(name="Arial",bold=True,size=9)
+            row_all_zero = True
             for ji,r in enumerate(results,2):
-                _dc(ws,ri,ji,r["groups"].get(g,{}).get(key,0.))
+                val = r["groups"].get(g,{}).get(key,0.)
+                _dc(ws,ri,ji,val)
+                if row_all_zero and val != 0.0:
+                    row_all_zero = False
+            # Skip the warning for torsion: torsion values are inherently
+            # ~1e-3 to 1e-2, and an empty 'tors' list (no atoms with a
+            # well-defined tangent) yields a legitimate 0. The OOP/INP/
+            # Winkel sheets are the diagnostic ones.
+            if row_all_zero and key != "torsion":
+                all_zero_groups.append(g)
+        if all_zero_groups:
+            _w_grp.warn(
+                f"Sheet '{sh}': groups {all_zero_groups} are 100% zero "
+                f"across all {len(results)} modes. This usually means "
+                f"that the PDB-to-Gaussian atom mapping lost these "
+                f"residues. Check the run log for related warnings.",
+                UserWarning, stacklevel=2)
 
 
 def _ws_fe_bindung(wb, results, coord_info, element_filter, E, runlog=None,
