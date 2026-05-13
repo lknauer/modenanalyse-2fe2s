@@ -248,6 +248,21 @@ def build_pcet_info(
         n_his_total += 1
         h_idx = idx_map_h.get(lig.h_center)
         if h_idx is None:
+            # v1.0.4: previously silent — same bug class as the v1.0.4
+            # analyze_his_hn fix. A protonated His whose H center is
+            # not in the H-eigenvector index gets skipped without a
+            # PCET reorganization channel, but no warning is emitted.
+            # If this happens for every protonated His, the entire PCET
+            # pathway ends up empty without any indication in the run
+            # log. We emit a deduplicated UserWarning so the missing
+            # PCET data becomes visible.
+            import warnings as _w_pcet
+            _w_pcet.warn(
+                f"build_pcet_info: protonated His '{lig.res_label}' "
+                f"H center {lig.h_center} not in atoms_h index. "
+                f"PCET HA channel will be missing for this ligand. "
+                f"Check PDB-Gaussian atom matching and include_hydrogen=True.",
+                UserWarning, stacklevel=2)
             continue
         h_pos = _atom_pos(atoms_h[h_idx])
 

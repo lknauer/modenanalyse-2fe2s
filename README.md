@@ -2,7 +2,7 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-1.0.2-green.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.0.4-green.svg)](CHANGELOG.md)
 [![Tests](https://img.shields.io/badge/tests-94%20passing-brightgreen.svg)](tests/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20074194.svg)](https://doi.org/10.5281/zenodo.20074194)
 
@@ -146,21 +146,32 @@ results/
 
 ## Documentation
 
-The documentation comes in three complementary formats:
+The documentation comes in three complementary documents:
 
-- **`docs/Manual.pdf`** (17 pages) -- a purpose-written English overview
-  covering theory, configuration, output reference, multi-cluster
-  workflow, validation, and troubleshooting. Recommended starting point
-  for new users.
-- **`docs/Manual_EN.pdf`** (95 pages) -- the complete English reference
-  manual, with full theory chapters (NRVS, Marcus-Hush, Huang-Rhys,
-  SCSD, UMAP/HDBSCAN), all 48 configuration fields, four worked
-  workflow scenarios, validation chapter (model matrix +
-  mitoNEET-H87C), troubleshooting, full Excel sheet reference, and
-  bibliography (61 entries).
-- **`docs/Manual_DE.pdf`** (98 pages) -- the original German reference
-  manual; the same content as `Manual_EN.pdf` but with the German
-  glossary and the *Befund*-Datei terminology preserved.
+- **`docs/Manual.pdf`** (104 pages, English) — the recommended
+  starting point. A complete theoretical and practical reference
+  covering NRVS background, Marcus-Hush reorganization theory,
+  Huang-Rhys factors, SCSD/Kingsbury-Senge analysis, UMAP/HDBSCAN
+  embeddings, all 48 configuration fields, four worked workflow
+  scenarios, validation chapter (model matrix + mitoNEET-H87C),
+  troubleshooting, full Excel sheet reference, and bibliography
+  (61 entries). Suitable for users and for reviewers who want a
+  literature-anchored walkthrough.
+- **`docs/Anleitung.pdf`** (107 pages, German) — the German
+  translation of `Manual.pdf`, v1.0.4-synchronised. Identical
+  content with German-language theory, glossary, and the original
+  *Befund*-Datei terminology preserved.
+- **`docs/Supplement.pdf`** (83 pages, English) — a standalone
+  supplementary technical document for reviewers, methodology
+  auditors, and developers. Goes deeper than the manual: every
+  formula derived from first principles, every algorithm given in
+  pseudocode, every data structure enumerated, every configuration
+  field with its code effect, every Excel column with its source
+  function and propagated-sigma rule, complete audit trail of the
+  v1.0.4 changes (FUND 1–17 plus 9 manual-drift findings), test
+  suite documentation (154 tests), validation strategy, and an
+  alphabetical code-function index. Designed so a reviewer can
+  audit the package without consulting any other document.
 
 For a 15-minute hands-on introduction, see
 [`docs/QUICKSTART.md`](docs/QUICKSTART.md).
@@ -170,9 +181,6 @@ QM/MM Hessian (422 atoms, 1266 modes), see
 [`docs/tutorial_mnt_h87c.md`](docs/tutorial_mnt_h87c.md). This shows
 every input, every output, and how to validate your installation
 against known-good headline numbers (Λ_FeS ≈ 338 cm⁻¹, etc.).
-
-The original German manual (`docs/Manual_DE.pdf`, 102 pages) is also
-shipped for users who prefer the German source.
 
 **Note on internal language**: Most source-code comments are now in
 English; some longer passages may still contain German residuals from

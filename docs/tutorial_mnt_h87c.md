@@ -285,4 +285,4 @@ All paths relative to package root:
 - `examples/full_template.toml` -- annotated configuration template
 - `examples/multi_cluster_template.toml` -- multi-cluster example
 - `docs/Manual.pdf` -- 17-page English overview
-- `docs/Manual_DE.pdf` -- 96-page complete reference (German)
+- `docs/Anleitung.pdf` -- 107-page complete reference (German)

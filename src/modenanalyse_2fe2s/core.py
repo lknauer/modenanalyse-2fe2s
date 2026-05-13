@@ -100,6 +100,17 @@ _SCORE_KEYS = SCORE_KEYS   # Abwaertskompatibilitaet
 # reset_warning_state() at the start of each run.
 _WARNED_EMPTY_GROUP: Set[str] = set()
 
+# v1.0.4 new: identical mechanism, but for the Fe-ligand c2l lookup that can
+# silently fall back to _zero_lig() (the v1.0.4 fix targets the same class of
+# silent data-loss bug as the v1.0.2 group_map fix). One warning per
+# (residue label, failure reason) pair per run.
+_WARNED_EMPTY_LIG:   Set[str] = set()
+
+# v1.0.4 new: identical mechanism, but for protonated-His H-N lookups that
+# can silently skip a ligand in analyze_his_hn(). Distinguishes legitimate
+# deprotonation (no warning) from a true lookup error (warning).
+_WARNED_HN_SKIP:     Set[str] = set()
+
 
 def reset_warning_state() -> None:
     """Reset per-run warning state.
@@ -109,6 +120,8 @@ def reset_warning_state() -> None:
     warnings from the first run.
     """
     _WARNED_EMPTY_GROUP.clear()
+    _WARNED_EMPTY_LIG.clear()
+    _WARNED_HN_SKIP.clear()
 
 
 # ===========================================================================
@@ -520,12 +533,44 @@ def analyze_fe_ligand(evg:      np.ndarray,
         # Fe-Eigenvektor
         fe_row = c2l.get(lig.fe_center)
         if fe_row is None or fe_row >= evg.shape[0]:
+            # v1.0.4: previously silent — same bug class as the v1.0.2
+            # _build_group_map fix. If the Fe atom's Gaussian center is
+            # not present in (or has an out-of-range index into) the
+            # eigenvector for this mode, the ligand's Fe-X stretch/bend
+            # all become 0 without any indication in the output. Emit
+            # a deduplicated UserWarning so silent zero-rows in the
+            # Fe_S_Cys/Fe_N_His sheets become visible.
+            _key = f"{label}|fe_lookup"
+            if _key not in _WARNED_EMPTY_LIG:
+                _WARNED_EMPTY_LIG.add(_key)
+                _reason = ("Fe center not in eigenvector index"
+                            if fe_row is None
+                            else f"Fe row {fe_row} >= evg shape {evg.shape[0]}")
+                warnings.warn(
+                    f"Ligand '{label}': {_reason}. "
+                    f"Fe-X stretch/bend will be 0 for this and any "
+                    f"subsequent mode with the same problem. "
+                    f"Check PDB-Gaussian atom matching.",
+                    UserWarning, stacklevel=2)
             result[label] = _zero_lig(s_sb)
             continue
 
         # ligands-Eigenvektor
         lc_row = c2l.get(lig.lig_center)
         if lc_row is None or lc_row >= evg.shape[0]:
+            # v1.0.4: same as above for the ligand donor atom.
+            _key = f"{label}|lig_lookup"
+            if _key not in _WARNED_EMPTY_LIG:
+                _WARNED_EMPTY_LIG.add(_key)
+                _reason = ("ligand center not in eigenvector index"
+                            if lc_row is None
+                            else f"ligand row {lc_row} >= evg shape {evg.shape[0]}")
+                warnings.warn(
+                    f"Ligand '{label}': {_reason}. "
+                    f"Fe-X stretch/bend will be 0 for this and any "
+                    f"subsequent mode with the same problem. "
+                    f"Check PDB-Gaussian atom matching.",
+                    UserWarning, stacklevel=2)
             result[label] = _zero_lig(s_sb)
             continue
 
@@ -591,19 +636,34 @@ def analyze_his_hn(evg:      np.ndarray,
                    c2l:      Dict[int,int],
                    coord_info: CoordInfo,
                    cfg:      Config,
+                   u_rms:    float = 1.0,
                    ) -> Dict:
     """Computes H-N bondaenderung for protonierte His-ligands.
 
     Parameters
     ----------
     evg : ndarray of shape (n_atoms, 3)
-        Eigenvector MIT hydrogen-Atomen (thermisch scaled).
+        Eigenvector MIT hydrogen-Atomen (thermisch scaled with u_rms by
+        the caller).
     c2l : dict of {int: int}
         Mapping Gaussian-Center → Zeilenindex in ``evg``.
     coord_info : CoordInfo
         Koordinations-Information.
     cfg : Config
         Benecessaryt ``sigma_eigvec``.
+    u_rms : float, optional
+        Thermal scaling factor. Same value the caller used to scale the
+        input ``evg``. Required for self-consistent sigma propagation:
+        without this, ``s_hn_stretch`` would report the uncertainty of
+        the *unscaled* eigenvector while ``hn_stretch`` reports the
+        *scaled* displacement, making the two quantities incomparable
+        (off by a factor of ~1/u_rms, typically ~20).
+
+        v1.0.4: this argument is new. Pre-v1.0.4 callers (without
+        ``u_rms``) get ``u_rms=1.0`` (no scaling) -- this matches the
+        old behaviour bit-for-bit when ``u_rms`` was implicitly 1, but
+        is still wrong if ``evg`` was scaled. Always pass the same
+        ``u_rms`` you used to build ``evg``.
 
     Returns
     -------
@@ -611,11 +671,19 @@ def analyze_his_hn(evg:      np.ndarray,
         Mapping Residuen-Label → ``{hn_stretch, s_hn_stretch, lig_element}``.
         Leeres Dict if no protonierten His present.
     """
-    s_sb   = float(np.sqrt(2) * cfg.sigma_eigvec)
+    # v1.0.4 bugfix: sigma was missing the u_rms factor, while the
+    # eigenvector rows ``d_n``/``d_h`` were thermally scaled. This made
+    # s_hn_stretch ~20x too large for typical u_rms (~0.05 A), which is
+    # the bug class identified in the v1.0.4 audit ("NH-Sigma fehlt
+    # u_rms"). The corrected formula matches analyze_fe_ligand exactly:
+    sigma_ev = float(cfg.sigma_eigvec) * float(u_rms)
+    s_sb     = sigma_ev * math.sqrt(2.0)
     result: Dict[str, Dict] = {}
 
     for lig in coord_info.ligands:
         if not lig.his_protonated or lig.h_center is None:
+            # Legitimate skip: this ligand is not a protonated His, so
+            # there is no H-N bond to analyse. No warning.
             continue
         label = lig.res_label
 
@@ -624,8 +692,33 @@ def analyze_his_hn(evg:      np.ndarray,
         n_row = c2l.get(n_center)
         h_row = c2l.get(lig.h_center)
         if n_row is None or h_row is None:
+            # v1.0.4: protonated His whose H or N is missing from c2l is a
+            # genuine error (vs. legitimate deprot above, which has
+            # h_center == None). Emit a deduplicated warning.
+            _key = f"{label}|hn_lookup"
+            if _key not in _WARNED_HN_SKIP:
+                _WARNED_HN_SKIP.add(_key)
+                _missing = []
+                if n_row is None: _missing.append(f"N center {n_center}")
+                if h_row is None: _missing.append(f"H center {lig.h_center}")
+                warnings.warn(
+                    f"Protonated His '{label}': "
+                    f"{' and '.join(_missing)} missing from eigenvector "
+                    f"index. PCET H-N stretching cannot be computed for "
+                    f"this ligand. Check PDB-Gaussian atom matching.",
+                    UserWarning, stacklevel=2)
             continue
         if n_row >= evg.shape[0] or h_row >= evg.shape[0]:
+            # Same as above for out-of-range indices.
+            _key = f"{label}|hn_oob"
+            if _key not in _WARNED_HN_SKIP:
+                _WARNED_HN_SKIP.add(_key)
+                warnings.warn(
+                    f"Protonated His '{label}': N row {n_row} or H row "
+                    f"{h_row} out of range (evg shape {evg.shape[0]}). "
+                    f"PCET H-N stretching cannot be computed for "
+                    f"this ligand.",
+                    UserWarning, stacklevel=2)
             continue
 
         d_n  = evg[n_row]
@@ -663,6 +756,7 @@ def analyze_ss_element(evg:        np.ndarray,
                         idx_map:    Dict[int,int],
                         ss_type:    str,
                         u_rms:      float = 1.0,
+                        sigma_eigvec: float = 5e-4,
                         ) -> Dict:
     """Analysiert Amplitude and bending a Sekundaerstruktur-elements.
 
@@ -758,8 +852,14 @@ def analyze_ss_element(evg:        np.ndarray,
             abs(float(com_v@axis)) + 1e-30)))
 
     # error propagation: sigma for Meane
+    # v1.0.4 bugfix: previously hardcoded as 1e-4, which silently overrode
+    # the configured cfg.sigma_eigvec for SS-element sigmas only (all
+    # other sigmas correctly use cfg.sigma_eigvec). Default 5e-4 here
+    # matches the default Config value, so out-of-the-box behaviour is
+    # 5x larger than pre-v1.0.4 -- but it is now self-consistent and
+    # responds to cfg.sigma_eigvec changes in the TOML.
     n_v = len(valid_rows)
-    s_amp = float(u_rms * 1e-4 * np.sqrt(n_v))
+    s_amp = float(u_rms * sigma_eigvec * np.sqrt(n_v))
 
     return {
         "amplitude_mean":     amp_mean,  "amplitude_max":    amp_max,
@@ -781,6 +881,7 @@ def analyze_all_ss(evg:          np.ndarray,
                     idx_map:      Dict[int,int],
                     ss_elements:  List[Dict],
                     u_rms:        float = 1.0,
+                    sigma_eigvec: float = 5e-4,
                     ) -> Dict[str, Dict]:
     """Analysiert alle SS-elements for a Mode.
 
@@ -811,7 +912,8 @@ def analyze_all_ss(evg:          np.ndarray,
         name    = elem["name"]
         centers = ss_center_map.get(name, [])
         out[name] = analyze_ss_element(
-            evg, c2l, centers, atoms, idx_map, elem["type"], u_rms)
+            evg, c2l, centers, atoms, idx_map, elem["type"], u_rms,
+            sigma_eigvec=sigma_eigvec)
     return out
 
 
@@ -1360,15 +1462,35 @@ def analyze_mode(bi:          BlockInfo,
                  for c in gctr if c in idx_map]
         ctr_g = np.mean(cg, 0) if cg else np.zeros(3)
         tors  = []
-        for ai, c in enumerate(gctr):
-            if c not in idx_map or ai >= evg_g.shape[0]: continue
+        # v1.0.4: index drift bugfix.
+        # evg_g is built via _evg_sub(gctr), which filters out gctr
+        # entries not in c2l. So evg_g has shape (n_in_c2l, 3) and its
+        # i-th row corresponds to the i-th gctr center FOR WHICH
+        # c IN c2l. The original loop used `ai` (the gctr index) to
+        # address both gctr AND evg_g, which silently mis-aligns rows
+        # whenever c2l is missing any center earlier in gctr. We now
+        # maintain an explicit ai_local counter that advances only for
+        # centers we actually consumed from evg_g, guaranteeing that
+        # rv (computed from atom coords) and evg_g[ai_local] always
+        # refer to the SAME atom. In normal operation c2l covers all
+        # heavy-block centers and the fix is a no-op; if c2l ever has
+        # gaps it prevents cross-atom contamination of the torsion sum.
+        ai_local = 0
+        for c in gctr:
+            if c not in c2l or c not in idx_map:
+                continue
+            if ai_local >= evg_g.shape[0]:
+                break
             rv = np.array([atoms[idx_map[c]]["x"], atoms[idx_map[c]]["y"],
                             atoms[idx_map[c]]["z"]]) - ctr_g
             rl = np.linalg.norm(rv)
-            if rl < 1e-10: continue
+            if rl < 1e-10:
+                ai_local += 1
+                continue
             tv = np.cross(n_hat, rv/rl); tl = np.linalg.norm(tv)
             if tl > 1e-10:
-                tors.append(abs(float(evg_g[ai] @ (tv/tl))))
+                tors.append(abs(float(evg_g[ai_local] @ (tv/tl))))
+            ai_local += 1
         g_tors = float(np.mean(tors)) if tors else 0.0
 
         group_res[gname] = {
@@ -1397,8 +1519,10 @@ def analyze_mode(bi:          BlockInfo,
             centers_h, evg_h = _get_eigvec_smart(
                 filepath, bi, col, include_hydrogen=True, cfg=cfg)
             c2l_h = {c: i for i, c in enumerate(centers_h)}
+            # v1.0.4: pass u_rms so analyze_his_hn can scale its sigma
+            # consistently with the (u_rms-scaled) eigenvector input.
             his_hn_res = analyze_his_hn(
-                evg_h * u_rms, c2l_h, coord_info, cfg)
+                evg_h * u_rms, c2l_h, coord_info, cfg, u_rms=u_rms)
         except Exception as _exc_hn:
             # Bug v3.0 (vormals undefined: ``runlog`` and ``r``):
             # warnings.warn is the in the Modul uebliche Konvention; das
@@ -1872,6 +1996,8 @@ def compute_scsd_for_mode_full(pts_ref:  np.ndarray,
                                  pts_dist: np.ndarray,
                                  model,
                                  u_rms:   float = 1.0,
+                                 sigma_coord:  float = 1e-3,
+                                 sigma_eigvec: float = 5e-4,
                                  ) -> Dict:
     r"""Vollstaendige SCSD-Symmetriezerlegung a Mode.
 
@@ -1937,8 +2063,17 @@ def compute_scsd_for_mode_full(pts_ref:  np.ndarray,
     classify_kernel_mode_from_evg : Heuristische Alternative.
     """
     out: Dict = {}
-    s_geo_ref  = float(np.sqrt(2) * 5e-7)
-    s_geo_dist = float(np.sqrt(2) * np.sqrt((5e-7)**2 + (5e-6 * u_rms)**2))
+    # v1.0.4 bugfix: previously hardcoded as 5e-7 (geometry) and 5e-6
+    # (eigenvector), which silently overrode the configured cfg.sigma_coord
+    # and cfg.sigma_eigvec for SCSD sigmas only. The hardcoded values are
+    # about 1000x smaller than the cfg defaults, so SCSD sigmas were
+    # systematically under-reported. Defaults here match Config (1e-3 and
+    # 5e-4) so the corrected behaviour is consistent with the rest of the
+    # code. To recover pre-v1.0.4 behaviour exactly, callers can still
+    # pass sigma_coord=5e-7, sigma_eigvec=5e-6.
+    s_geo_ref  = float(np.sqrt(2) * sigma_coord)
+    s_geo_dist = float(np.sqrt(2) *
+                        np.sqrt(sigma_coord**2 + (sigma_eigvec * u_rms)**2))
 
     modes_ref  = _run_scsd(pts_ref,  model)
     modes_dist = _run_scsd(pts_dist, model)

@@ -83,7 +83,7 @@ domain term meaning "diagnostic report").
   (`docs/Manual.pdf`) covering theory, configuration, output reference,
   validation, and troubleshooting. The original German manual is also
   shipped with the English edition as a supplementary reference
-  (`docs/Manual_DE.pdf`).
+  (`docs/Anleitung.pdf`).
 - For Origin workflows: when porting between versions, only the sheet
   names and column headers change; the row order and numerical content
   are byte-for-byte identical for the same input data.

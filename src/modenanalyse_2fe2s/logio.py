@@ -227,6 +227,16 @@ class RunLog:
             f"  freq_filter: "  # freq_min/max: None-safe
             f"{'-' if cfg.freq_min is None else cfg.freq_min} - "
             f"{'-' if cfg.freq_max is None else cfg.freq_max} cm-1\n")
+        # Bugfix v1.0.4 (post-release Apd1 audit): also report freq_windows
+        # if set; previously only freq_min/freq_max were shown, which made
+        # the actual filter invisible when only freq_windows was used.
+        _fw = getattr(cfg, "freq_windows", None)
+        if _fw:
+            try:
+                _fw_str = ", ".join(f"[{lo:.0f}-{hi:.0f}]" for lo, hi in _fw)
+            except Exception:
+                _fw_str = str(_fw)
+            lines.append(f"  freq_windows: {_fw_str} cm-1\n")
         lines.append(f"  temp_k:      {cfg.temp_k} K\n")
         lines.append(f"  interp_step: {cfg.interp_step} cm-1\n")
         lines.append(f"  interp_boundary_mode: {getattr(cfg, 'interp_boundary_mode', 'context')}\n")
