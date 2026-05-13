@@ -950,6 +950,25 @@ def find_coordinating_residues(
         runlog.warn(
             f"PDB matching: only {match_pct:.1f}% of heavy PDB atoms "
             f"zugeordnet. SS- and Gruppen-Amplituden koennen uncomplete sein.")
+    # v1.0.4: warn on high ambiguity. A match is "ambiguous" when more
+    # than one Gaussian atom falls within the matching tolerance of a
+    # PDB atom. The matcher picks the closest, which is usually right,
+    # but >5% ambiguity is a strong hint that cfg.coord_match_tol is
+    # too loose for this system (dense atom clusters, e.g. aromatic
+    # rings). The matched assignments are kept, but the user should
+    # tighten coord_match_tol or verify the affected residues manually.
+    if n_pdb_heavy > 0 and n_ambiguous > 0:
+        ambig_pct = 100.0 * n_ambiguous / n_pdb_heavy
+        if ambig_pct > 5.0:
+            import warnings as _w_amb
+            _w_amb.warn(
+                f"PDB matching: {n_ambiguous} of {n_pdb_heavy} PDB atoms "
+                f"({ambig_pct:.1f}%) had multiple Gaussian candidates "
+                f"within tolerance ({cfg.coord_match_tol*2:.3f} A). "
+                f"Closest match was kept, but the assignments may be "
+                f"unstable. Consider tightening cfg.coord_match_tol or "
+                f"verifying affected residues manually.",
+                UserWarning, stacklevel=2)
 
     runlog.group_match["ligands"] = {
         l.res_label: {
@@ -1062,13 +1081,18 @@ def _add_his_hn_info(
                 if lig.his_protonated:
                     break
 
-            if not lig.his_protonated:
-                _hn_miss = (f"His_HN NICHT erkannt: {lig.res_label} "
-                            f"(Ring-N found: {len(ring_ns)}, "
-                            f"Gaussian-H gesamt: {len(gaus_h)}, "
-                            f"PDB-H gemappt: {len(pdb_h_ctrs)})")
-                if runlog is not None: runlog.warn(_hn_miss)
-                print(f"    {_hn_miss}")
+        # Bugfix v1.0.4 (post-release Apd1 audit): emit the "not found"
+        # warning EXACTLY ONCE per ligand, after both PDB and Gaussian-
+        # fallback paths have been tried. Previously the warning sat
+        # inside the `for use_pdb_only in (True, False)` loop, so a
+        # deprotonated His produced two identical warning lines.
+        if not lig.his_protonated:
+            _hn_miss = (f"His_HN NICHT erkannt: {lig.res_label} "
+                        f"(Ring-N found: {len(ring_ns)}, "
+                        f"Gaussian-H gesamt: {len(gaus_h)}, "
+                        f"PDB-H gemappt: {len(pdb_h_ctrs)})")
+            if runlog is not None: runlog.warn(_hn_miss)
+            print(f"    {_hn_miss}")
 
 
 def _build_group_map(

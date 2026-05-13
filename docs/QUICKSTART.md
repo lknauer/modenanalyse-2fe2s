@@ -309,7 +309,7 @@ This is useful for parameter scans where most fields stay the same.
 - `docs/Manual.pdf` -- English manual (~17 pages) with theory,
   configuration reference, output reference, multi-cluster workflow,
   validation, and troubleshooting (recommended starting point)
-- `docs/Manual_DE.pdf` -- complete reference manual in German (96 pages)
+- `docs/Anleitung.pdf` -- complete reference manual in German (107 pages)
 - `docs/SHEET_MAPPING_DE_EN.md` — sheet/column mapping if you also use
   the German edition
 - `examples/full_template.toml` — annotated configuration template

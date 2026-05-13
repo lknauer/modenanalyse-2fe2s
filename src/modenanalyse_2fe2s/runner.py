@@ -63,6 +63,7 @@ same file) skip the full scan completely and are significantly faster.
 """
 from __future__ import annotations
 import os, sys, time, warnings
+from typing import Dict, List
 warnings.filterwarnings("ignore", category=RuntimeWarning, module="numpy")
 warnings.filterwarnings("ignore", category=UserWarning,    message=".*n_jobs.*")
 
@@ -89,6 +90,7 @@ from .core import (
 )
 from .embedding import (
     build_feature_matrix, compute_embeddings, compute_ss_umap_cluster,
+    compute_ca_umap_cluster,
 )
 from .export import (
 
@@ -125,6 +127,101 @@ def _build_ca_data(ca_pre_list, amps_by_mode, res_list):
     return ([c for c, _ in ca_pre_list],
             [rn for _, rn in ca_pre_list],
             ca_matrix)
+
+
+def _make_synthetic_zero_mode(freq_cm1: float,
+                                coord_info,
+                                fe_c: List[int],
+                                s_c:  List[int]) -> Dict:
+    """Build a synthetic null-mode result dict (v1.0.4 FUND 13).
+
+    Produces a Result-dict that matches the structure of a real mode
+    analysed by ``analyze_mode_with_fallback`` but has all observable
+    fields set to zero. Used as an explicit decay anchor for the
+    interpolated pDOS when there is no real mode above ``freq_max``
+    (i.e., the DFT spectrum ends inside the analysis range).
+
+    Why this exists. Without an upper anchor, ``np.interp`` would simply
+    return its ``right=0.0`` boundary value, producing a step at
+    ``freq_max``. With a synthetic zero anchor at
+    ``freq_max + interp_context_cm1``, the interpolation *decays
+    smoothly* toward zero across the buffer zone, which is the
+    physically correct behaviour (no modes there = no contribution).
+
+    Parameters
+    ----------
+    freq_cm1 : float
+        Frequency at which to place the synthetic zero. Conventionally
+        ``cfg.freq_max + cfg.interp_context_cm1``.
+    coord_info : CoordInfo
+        Used only to mirror the group/ligand dict structure of a real
+        mode (all entries get zero values).
+    fe_c, s_c : list of int
+        Cluster atom centres; mirrored into ``cl_com``/``cl_exp``/etc.
+
+    Returns
+    -------
+    dict
+        A result dict shaped exactly like a real mode but with all
+        observables zero. The ``_evg``/``_centers``/``_c2l`` keys are
+        omitted so the B-factor accumulator and SS-analysis loop in the
+        runner skip this entry (both check for ``r.get("_evg")``).
+    """
+    # Zero per-group/per-ligand/per-his_hn dicts (same keys as a real
+    # mode, all values zero).
+    zero_group = {k: 0. for k in
+        ("oop", "inp", "angle", "torsion", "total",
+         "s_oop", "s_inp", "s_angle", "s_tors")}
+    groups = {gn: dict(zero_group) for gn in coord_info.group_map.keys()}
+
+    zero_fe_lig = {
+        "stretch": 0., "bend": 0., "bend_inp": 0., "bend_oop": 0.,
+        "s_stretch": 0., "s_bend": 0., "s_bend_inp": 0., "s_bend_oop": 0.,
+        "bend_significance": "trivial", "lig_element": "?"}
+    fe_lig = {l.res_label: dict(zero_fe_lig, lig_element=l.lig_element)
+                for l in coord_info.ligands}
+
+    his_hn = {}  # no protonated-His H-N stretching for synthetic mode
+
+    return {
+        "number":    -1,       # sentinel: not a real Gaussian mode index
+        "freq":      float(freq_cm1),
+        "red_mass":  0.,
+        "frc_const": 0.,
+        "sym":       "A",
+        "precision": "synthetic",
+        "mode_type": "synthetic_zero",
+        "mode_type_detail": "synthetic_zero",
+        # Ring 2: ligand sphere (all zero)
+        "lig_oop_pct":   0., "lig_inp_pct":   0., "lig_d": 0.,
+        "s_lig_oop":     0., "s_lig_d":       0.,
+        # Ring 3: secondary sphere (all zero)
+        "second_oop_pct": 0., "second_inp_pct": 0., "second_d": 0.,
+        "s_second_oop":   0., "s_second_d":     0.,
+        # Ring 1: cluster core (all zero)
+        "kern_oop":  0., "kern_inp":  0., "kern_d":    0.,
+        "s_kern_oop": 0., "s_kern_d":  0.,
+        "cl_com":    np.zeros(3), "cl_exp":  0., "cl_rot": 0.,
+        "groups":    groups,
+        "fe_lig":    fe_lig,
+        "his_hn":    his_hn,
+        "u_rms":     0.,
+        "kern_primary":   "synthetic", "kern_secondary": "synthetic",
+        "kern_scores":    {},
+        "kern_loc":       0.,
+        # Reorganization channels: empty dict means
+        # compute_total_reorganization / compute_modulation_spectra skip
+        # this mode automatically (their loops check truthiness).
+        "reorg_per_mode": {},
+        "reorg_subchannels": [],
+        "pts_ref":   None,
+        "pts_dist":  None,
+        # NOTE: NO "_evg" / "_centers" / "_c2l" keys. The B-factor and
+        # SS-analysis loops in the runner explicitly check
+        # `r.get("_evg") is not None` and skip otherwise -- so this
+        # synthetic mode contributes 0 to B-factors and 0 to SS by
+        # construction, without us having to fabricate eigenvectors.
+    }
 
 
 # ===========================================================================
@@ -569,13 +666,32 @@ def _run_analysis_single(cfg: "Config") -> int:
                   f"{sum(len(a) for a in coord_info.pcet_info.acceptor_centers_per_h)} "
                   f"H-Bond-Paare")
         else:
-            if coord_info.pcet_info.n_his == 0:
+            # Bugfix v1.0.4 (post-release Apd1 audit): pcet_info.n_his
+            # counts only PROTONATED His ligands. To distinguish "no
+            # His at all" from "His present but all deprotonated" we
+            # additionally inspect coord_info.ligands directly. The
+            # previous message "no His ligands at cluster" was actively
+            # misleading for deprot systems with His ligands.
+            n_his_total = sum(
+                1 for l in coord_info.ligands
+                if l.res_name.upper() == "HIS" and l.lig_element == "N")
+            if n_his_total == 0:
                 runlog.info(
                     "PCET reorg: NOT active (no His ligands at cluster). "
                     "PCET is physically impossible; S ligands (Cys) "
                     "cannot be protonated/deprotonated under physiological "
                     "conditions. NH and HA channels are skipped.")
                 print("    PCET reorg: NOT active (no His)")
+            elif coord_info.pcet_info.n_his == 0:
+                # His present but none protonated (deprot system)
+                runlog.info(
+                    f"PCET reorg: NOT active ({n_his_total} His ligand(s) "
+                    f"found but none protonated). NH and HA channels are "
+                    f"skipped. To enable PCET analysis, supply a Gaussian "
+                    f"log with at least one protonated His or check that "
+                    f"the H atoms are present in PDB/Gaussian inputs.")
+                print(f"    PCET reorg: NOT active ({n_his_total} His "
+                      f"present but all deprotonated)")
             else:
                 runlog.warn(
                     f"PCET reorg: His ligands found, but no "
@@ -793,7 +909,9 @@ def _run_analysis_single(cfg: "Config") -> int:
                     and r.get("pts_dist") is not None):
                 try:
                     r["scsd"] = compute_scsd_for_mode_full(
-                        r["pts_ref"], r["pts_dist"], scsd_model, r["u_rms"])
+                        r["pts_ref"], r["pts_dist"], scsd_model, r["u_rms"],
+                        sigma_coord=cfg.sigma_coord,
+                        sigma_eigvec=cfg.sigma_eigvec)
                 except Exception as _e:
                     r["scsd"] = {}
                     runlog.warn(f"SCSD Mode {mn} @ {freq:.2f} cm-1: "
@@ -807,7 +925,8 @@ def _run_analysis_single(cfg: "Config") -> int:
                 try:
                     r["ss"] = analyze_all_ss(
                         evg_r, c2l_r, ss_center_map,
-                        atoms, idx_map, ss_elements, r["u_rms"])
+                        atoms, idx_map, ss_elements, r["u_rms"],
+                        sigma_eigvec=cfg.sigma_eigvec)
                 except Exception as _e_ss:
                     r["ss"] = {}
                     runlog.warn(f"SS Mode {mn} @ {freq:.2f} cm-1: "
@@ -868,16 +987,54 @@ def _run_analysis_single(cfg: "Config") -> int:
     # Rechts (jenseits freq_max): verhindert abrupten Abfall at the oberen Rand
     # Links  (unterhalb freq_min): verhindert Nullsetzung at the unteren Rand
     #   → only if freq_min > erster Gesamtmode (echte modes liegen darunter)
+    #
+    # v1.0.4 (FUND 12): Wir laden Modes IM Fenster
+    # [freq_max, freq_max+interp_context_cm1] als bisher PLUS — falls dieses
+    # Fenster keine einzige Mode enthaelt — zusaetzlich die EINE
+    # naechstliegende Mode oberhalb freq_max (analog links). Damit hat
+    # np.interp() immer mindestens einen Anker jenseits the Grenze, sodass
+    # the lineare Interpolation auch dann sauber bis freq_max laeuft, wenn
+    # the naechste Mode weiter als interp_context_cm1 entfernt liegt.
+    #
+    # v1.0.4 (FUND 13, user-requested follow-up): Falls auch das nicht hilft,
+    # weil ueberhaupt keine echte Mode oberhalb freq_max existiert (echtes
+    # Spektrumsende), fuegen wir eine SYNTHETISCHE Null-Mode bei
+    # freq_max + interp_context_cm1 ein. Das ist physikalisch der korrekte
+    # Decay-Anker -- oberhalb des DFT-Spektrums existieren wirklich keine
+    # Beitraege -- und macht das Verhalten explizit (frueher implizit ueber
+    # np.interp's right=0.0).
     context_results = []
     if cfg.freq_max is not None and cfg.interp_context_cm1 > 0:
         ctx_hi = cfg.freq_max + cfg.interp_context_cm1
-        selected_ctx = sorted(
-            [(bi, col, mn, freq)
-             for bi in all_blocks
-             for col, (mn, freq) in enumerate(zip(bi.mode_nums, bi.freqs))
-             if (mn in best_block and best_block[mn] is bi
-                 and freq > cfg.freq_max and freq <= ctx_hi)],
-            key=lambda x: x[3])
+        # Alle Modes-im-Kontextfenster (nahe Kontextmodes)
+        candidates_in_window = [(bi, col, mn, freq)
+            for bi in all_blocks
+            for col, (mn, freq) in enumerate(zip(bi.mode_nums, bi.freqs))
+            if (mn in best_block and best_block[mn] is bi
+                and freq > cfg.freq_max and freq <= ctx_hi)]
+        # v1.0.4 FUND 12: wenn keine Modes im Kontextfenster, nimm die
+        # naechste Mode oberhalb als "minimaler Anker"
+        _use_synthetic_upper_zero = False
+        if not candidates_in_window:
+            all_above = sorted(
+                [(bi, col, mn, freq)
+                 for bi in all_blocks
+                 for col, (mn, freq) in enumerate(zip(bi.mode_nums, bi.freqs))
+                 if (mn in best_block and best_block[mn] is bi
+                     and freq > cfg.freq_max)],
+                key=lambda x: x[3])
+            if all_above:
+                candidates_in_window = [all_above[0]]
+                runlog.info(
+                    f"No context modes in [{cfg.freq_max:.1f}, "
+                    f"{ctx_hi:.1f}] cm-1; using single anchor mode "
+                    f"#{all_above[0][2]} @ {all_above[0][3]:.2f} cm-1 "
+                    f"for upper-edge interpolation (v1.0.4 FUND 12).")
+            else:
+                # v1.0.4 FUND 13: keine echte Mode oberhalb freq_max.
+                # Synthetische Null-Mode als Decay-Anker einfuegen.
+                _use_synthetic_upper_zero = True
+        selected_ctx = sorted(candidates_in_window, key=lambda x: x[3])
         ctx_fail_r = 0
         for bi, col, mn, freq in selected_ctx:
             try:
@@ -896,6 +1053,21 @@ def _run_analysis_single(cfg: "Config") -> int:
                 ctx_fail_r += 1
                 runlog.warn(f"Kontext-Mode rechts {mn} @ {freq:.2f} cm\u207b\xb9: "
                             f"{type(_e_ctx).__name__}: {_e_ctx}")
+        # v1.0.4 FUND 13: Append synthetische Null-Mode falls noetig.
+        # Wichtig: nur einfuegen, wenn weder echte Kontextmodes noch
+        # FUND-12-Fallback-Modes geladen wurden (sonst doppelt anchored).
+        if _use_synthetic_upper_zero and not context_results:
+            _synth_freq = float(ctx_hi)
+            _synth_result = _make_synthetic_zero_mode(
+                freq_cm1 = _synth_freq,
+                coord_info = coord_info,
+                fe_c = fe_c, s_c = s_c)
+            context_results.append(_synth_result)
+            runlog.info(
+                f"Synthetic zero anchor at {_synth_freq:.2f} cm-1 "
+                f"(no real modes above freq_max={cfg.freq_max:.1f}). "
+                f"Interpolated quantities decay to 0 above this point "
+                f"(v1.0.4 FUND 13).")
         if context_results:
             runlog.info(f"{len(context_results)} context modes right "
                         f"({cfg.freq_max:.1f}\u2013{ctx_hi:.1f} cm\u207b\xb9)")
@@ -913,13 +1085,30 @@ def _run_analysis_single(cfg: "Config") -> int:
                            and 0 < freq < cfg.freq_min]
         if all_freqs_below:
             ctx_lo = cfg.freq_min - cfg.interp_context_cm1
-            selected_ctx_l = sorted(
-                [(bi, col, mn, freq)
-                 for bi in all_blocks
-                 for col, (mn, freq) in enumerate(zip(bi.mode_nums, bi.freqs))
-                 if (mn in best_block and best_block[mn] is bi
-                     and freq < cfg.freq_min and freq >= ctx_lo)],
-                key=lambda x: x[3])
+            candidates_in_window_l = [(bi, col, mn, freq)
+                for bi in all_blocks
+                for col, (mn, freq) in enumerate(zip(bi.mode_nums, bi.freqs))
+                if (mn in best_block and best_block[mn] is bi
+                    and freq < cfg.freq_min and freq >= ctx_lo)]
+            # v1.0.4 FUND 12: wenn keine Modes im Kontextfenster, nimm die
+            # naechste Mode unterhalb als "minimaler Anker"
+            if not candidates_in_window_l:
+                all_below = sorted(
+                    [(bi, col, mn, freq)
+                     for bi in all_blocks
+                     for col, (mn, freq) in enumerate(zip(bi.mode_nums, bi.freqs))
+                     if (mn in best_block and best_block[mn] is bi
+                         and 0 < freq < cfg.freq_min)],
+                    key=lambda x: -x[3])  # absteigend → naechste UNTER freq_min zuerst
+                if all_below:
+                    candidates_in_window_l = [all_below[0]]
+                    runlog.info(
+                        f"No context modes in [{ctx_lo:.1f}, "
+                        f"{cfg.freq_min:.1f}] cm-1; using single anchor "
+                        f"mode #{all_below[0][2]} @ "
+                        f"{all_below[0][3]:.2f} cm-1 for lower-edge "
+                        f"interpolation (v1.0.4 FUND 12).")
+            selected_ctx_l = sorted(candidates_in_window_l, key=lambda x: x[3])
             ctx_fail_l = 0
             for bi, col, mn, freq in selected_ctx_l:
                 try:
@@ -1122,6 +1311,15 @@ def _run_analysis_single(cfg: "Config") -> int:
         ca_data_g = _build_ca_data(ca_pre, ca_amps_by_mode, results) \
                     if ca_pre is not None else None
 
+        # Ca-UMAP over alle (new in v1.0.3)
+        ca_umap_g = None
+        if ca_data_g is not None:
+            try:
+                ca_umap_g = compute_ca_umap_cluster(
+                    results, ca_data_g, runlog=runlog)
+            except Exception as _eg:
+                runlog.warn(f"Ca-UMAP Gesamt: {_eg}")
+
         ges_payload = ExportPayload(
             results              = results,
             coord_info           = coord_info,
@@ -1140,22 +1338,39 @@ def _run_analysis_single(cfg: "Config") -> int:
             cluster_data         = cluster_data_g,
             ca_data              = ca_data_g,
             ss_umap_data         = ss_umap_g,
+            ca_umap_data         = ca_umap_g,
         )
         print(f"    Exporting overall analysis...")
         export_all(ges_payload)
         print(f"    \u2713 Gesamt \u2192 {_base_outdir}")
 
         # ── Pro Fenster: Sub-Auswertung in Unterverzeichnis ──────────────
-        for win_lo, win_hi in windows:
+        n_windows = len(windows)
+        for _win_idx, (win_lo, win_hi) in enumerate(windows):
             _hi_fin = win_hi != float("inf")
+            # v1.0.4 bugfix: half-open intervals [lo, hi) so a mode with
+            # frequency exactly equal to a window boundary lands in
+            # exactly ONE window, not two. The very last window stays
+            # closed [lo, hi] so its upper edge mode is not lost. With
+            # the default 100 cm-1-quantized boundaries this is mostly
+            # theoretical (real frequencies are floats), but the
+            # half-open convention is the standard for binning and
+            # prevents silent double-counting of B-factor and
+            # Lambda_cumulative contributions if a quantum chemistry
+            # code emits a frequency that lands exactly on a boundary.
+            _is_last = (_win_idx == n_windows - 1)
             win_label = (f"{win_lo:.0f}-{win_hi:.0f} cm-1" if _hi_fin
                          else f"{win_lo:.0f}-max cm-1")
             print(f"\n  Window {win_label}...")
 
-            # modes for dieses Window filtern
-            win_results = [r for r in results
-                           if r["freq"] >= win_lo and
-                           (not _hi_fin or r["freq"] <= win_hi)]
+            # modes for dieses Window filtern (half-open except last)
+            if _is_last or not _hi_fin:
+                win_results = [r for r in results
+                                if r["freq"] >= win_lo and
+                                (not _hi_fin or r["freq"] <= win_hi)]
+            else:
+                win_results = [r for r in results
+                                if win_lo <= r["freq"] < win_hi]
             if not win_results:
                 print(f"    No modes -- skipped.")
                 runlog.warn(f"Window {win_label}: no modes, skipped.")
@@ -1217,6 +1432,15 @@ def _run_analysis_single(cfg: "Config") -> int:
                 except Exception as _ew:
                     runlog.warn(f"SS-UMAP Window {win_label}: {_ew}")
 
+            # Ca-UMAP for dieses Fenster (new in v1.0.3)
+            ca_umap_w = None
+            if ca_data_w is not None:
+                try:
+                    ca_umap_w = compute_ca_umap_cluster(
+                        win_results, ca_data_w, runlog=runlog)
+                except Exception as _ew:
+                    runlog.warn(f"Ca-UMAP Window {win_label}: {_ew}")
+
             # Payload: per Fenster
             win_payload = ExportPayload(
                 results              = win_results,
@@ -1236,6 +1460,7 @@ def _run_analysis_single(cfg: "Config") -> int:
                 cluster_data         = cluster_data_w,
                 ca_data              = ca_data_w,
                 ss_umap_data         = ss_umap_w,
+                ca_umap_data         = ca_umap_w,
             )
             print(f"    Export...")
             export_all(win_payload)
@@ -1287,6 +1512,25 @@ def _run_analysis_single(cfg: "Config") -> int:
             except Exception as e:
                 runlog.warn(f"SS-UMAP failed: {e}")
 
+        # Ca-UMAP-Clustering (new in v1.0.3)
+        ca_umap_data = None
+        if ca_data is not None:
+            print("  Ca-UMAP-Clustering...")
+            try:
+                ca_umap_data = compute_ca_umap_cluster(
+                    results, ca_data, runlog=runlog)
+                if ca_umap_data and ca_umap_data[0] is not None:
+                    _ca_labels = ca_umap_data[1]
+                    import numpy as _np3
+                    _ca_arr = _np3.array([l for l in _ca_labels if l != -99])
+                    runlog.cluster_summary["Ca_UMAP"] = {
+                        "n_clusters": len(set(_ca_arr) - {-1}) if len(_ca_arr) else 0,
+                        "n_noise":    int((_ca_arr == -1).sum()) if len(_ca_arr) else 0,
+                        "n_total":    len(_ca_arr),
+                    }
+            except Exception as e:
+                runlog.warn(f"Ca-UMAP failed: {e}")
+
         print("  Export...")
         _payload = ExportPayload(
             results              = results,
@@ -1306,6 +1550,7 @@ def _run_analysis_single(cfg: "Config") -> int:
             cluster_data         = cluster_data,
             ca_data              = ca_data,
             ss_umap_data         = ss_umap_data,
+            ca_umap_data         = ca_umap_data,
         )
         export_all(_payload)
         print("  Embedding PNGs: done")

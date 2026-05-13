@@ -600,4 +600,160 @@ def compute_ss_umap_cluster(results:     List[Dict],
 
     return Z2d, full_labels, feat_names, X_norm, valid_idx, cluster_chars
 
-__version__ = "1.4"  # modenanalyse v1.4
+
+# ===========================================================================
+# Ca-UMAP-Clustering (new in v1.0.3)
+# ===========================================================================
+
+def compute_ca_umap_cluster(results: List[Dict],
+                              ca_data: tuple,
+                              runlog=None,
+                              ) -> tuple:
+    """UMAP clustering of modes on C-alpha amplitude features.
+
+    Models each mode as a point in an N_ca-dimensional space where each
+    dimension is the C-alpha amplitude of one residue. Modes with similar
+    spatial distribution of backbone motion (e.g. localized to the same
+    helix or both delocalized across the protein) cluster together. This
+    is complementary to the SS-UMAP, which embeds modes via per-SS-element
+    aggregated features, and to the global UMAP, which uses Marcus-Hush
+    reorganization features.
+
+    Parameters
+    ----------
+    results : list of dict
+        Mode analysis results (one per mode).
+    ca_data : tuple of (ca_centers, ca_res_nums, ca_matrix)
+        Output of ``runner._build_ca_data``. ``ca_matrix`` has shape
+        ``(n_modes, n_calpha)`` or ``(n_calpha, n_modes)`` -- detected
+        and handled transparently.
+    runlog : RunLog, optional
+        For warning and info messages.
+
+    Returns
+    -------
+    Z2d : ndarray of shape (n_modes, 2) or None
+        2D UMAP coordinates per mode (NaN rows for modes without Ca data).
+    full_labels : ndarray of shape (n_modes,) or None
+        HDBSCAN labels for all modes (``-99`` = no Ca data).
+    feat_names : list of str
+        Feature names (residue identifiers, e.g. "CA_42").
+    X_norm : ndarray or None
+        Normalized feature matrix (per-feature z-score).
+    valid_idx : list of int
+        Indices into ``results`` that have non-zero Ca-amplitude data.
+    cluster_chars : dict
+        Cluster characterization (Z-scores, Fisher-F, top modes) from
+        ``characterize_clusters``.
+
+    Notes
+    -----
+    Rationale for normalization: per-Ca z-score (mean 0, std 1 across
+    modes) gives every residue equal weight in the UMAP distance. Without
+    normalization, the few residues with the largest amplitude swings
+    would dominate the embedding, which would make the result essentially
+    a low-rank projection of those few residues rather than a true
+    fingerprint of mode shape.
+    """
+    if ca_data is None:
+        return None, None, [], None, [], {}
+
+    try:
+        ca_centers, ca_res_nums, ca_matrix = ca_data[0], ca_data[1], ca_data[2]
+    except (TypeError, IndexError):
+        return None, None, [], None, [], {}
+
+    if ca_matrix is None or len(ca_matrix) == 0:
+        return None, None, [], None, [], {}
+
+    ca_matrix = np.asarray(ca_matrix, dtype=float)
+    n_modes = len(results)
+    n_calpha = len(ca_res_nums) if ca_res_nums is not None else 0
+    if n_calpha == 0:
+        return None, None, [], None, [], {}
+
+    # Detect orientation: we want (n_modes, n_calpha)
+    if ca_matrix.shape == (n_modes, n_calpha):
+        X = ca_matrix.copy()
+    elif ca_matrix.shape == (n_calpha, n_modes):
+        X = ca_matrix.T.copy()
+    else:
+        msg = (f"Ca-UMAP: ca_matrix shape {ca_matrix.shape} does not match "
+               f"(n_modes={n_modes}, n_calpha={n_calpha}); Ca-UMAP skipped.")
+        if runlog is not None:
+            runlog.warn(msg)
+        else:
+            print(f"    {msg}")
+        return None, None, [], None, [], {}
+
+    # Identify modes with non-zero Ca data (some modes may have all-NaN
+    # or all-zero rows if the C-alpha analysis was skipped for them).
+    row_has_data = np.any(np.isfinite(X) & (np.abs(X) > 0), axis=1)
+    valid_idx = [i for i, ok in enumerate(row_has_data) if ok]
+
+    if len(valid_idx) < 5:
+        msg = (f"Ca-UMAP: only {len(valid_idx)} modes with Ca data "
+               f"(min: 5). Ca-UMAP skipped.")
+        if runlog is not None:
+            runlog.warn(msg)
+        else:
+            print(f"    {msg}")
+        return None, None, [], None, [], {}
+
+    X_valid = X[valid_idx, :]
+    # Replace any residual NaN/inf with zero before normalization.
+    X_valid = np.nan_to_num(X_valid, nan=0.0, posinf=0.0, neginf=0.0)
+
+    mu = X_valid.mean(0, keepdims=True)
+    sg = X_valid.std(0, keepdims=True); sg[sg < 1e-12] = 1.
+    X_norm = (X_valid - mu) / sg
+
+    feat_names = [f"CA_{rn}" for rn in ca_res_nums]
+
+    try:
+        from umap import UMAP
+        nn, _ = _auto_embed_params(len(valid_idx))
+        Z2d_valid = UMAP(n_components=2, n_neighbors=nn,
+                          random_state=42, low_memory=False).fit_transform(X_norm)
+    except Exception as e_u:
+        msg = (f"Ca-UMAP: UMAP failed, falling back to PCA "
+               f"({type(e_u).__name__}: {e_u})")
+        if runlog is not None:
+            runlog.warn(msg)
+        else:
+            print(f"    {msg}")
+        from sklearn.decomposition import PCA
+        Z2d_valid = PCA(n_components=2, random_state=42).fit_transform(X_norm)
+
+    mcs = _auto_mcs(len(valid_idx))
+    labels_valid = _hdbscan_on(Z2d_valid, mcs)
+    n_cl = len(set(labels_valid) - {-1})
+    n_ns = int((labels_valid == -1).sum())
+    _ca_umap_msg = (f"Ca-UMAP: {n_cl} clusters, {n_ns} noise, "
+                    f"mcs={mcs}, n_modes={len(valid_idx)}")
+    if runlog is not None:
+        runlog.info(_ca_umap_msg)
+    else:
+        print(f"    {_ca_umap_msg}")
+
+    # Pad back to full mode list: -99 means "no Ca data"
+    full_labels = np.full(n_modes, -99, dtype=int)
+    Z2d_full = np.full((n_modes, 2), np.nan, dtype=float)
+    for li, gi in enumerate(valid_idx):
+        full_labels[gi] = int(labels_valid[li])
+        Z2d_full[gi, :] = Z2d_valid[li, :]
+
+    # Cluster characterization
+    cluster_chars: dict = {}
+    _cids_ca = sorted(k for k in set(labels_valid) if k >= 0)
+    if _cids_ca and X_norm is not None:
+        # characterize_clusters expects results indexed the same way as
+        # the rows of X_norm and labels — i.e. only the valid modes.
+        results_valid = [results[i] for i in valid_idx]
+        cluster_chars, _ = characterize_clusters(
+            Z2d_valid, labels_valid, X_norm, feat_names, results_valid)
+
+    return Z2d_full, full_labels, feat_names, X_norm, valid_idx, cluster_chars
+
+
+__version__ = "1.5"  # modenanalyse v1.5 (Ca-UMAP added)

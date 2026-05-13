@@ -167,6 +167,17 @@
 \newcommand{\Aui}{A_{\mathrm{u}}}
 \newcommand{\PCET}{\mathrm{PCET}}
 \newcommand{\ET}{\mathrm{ET}}
+
+% --- Formel-zu-Code-Referenz-Makro ---------------------------------------
+% Verweist auf die Funktion im Quellbaum, die eine Formel umsetzt.
+% Format: \codref{module.function}. Der Verifikationstest
+% tests/test_manual_code_refs.py prueft alle \codref-Eintraege in
+% Manual.tex (das DE-Manual spiegelt das EN 1:1, daher nicht
+% separat getestet). Refaktorierungen im Code, die Manual-Refs
+% verwaisen lassen, schlagen dort als Testfehler auf.
+\newcommand{\codref}[1]{%
+  \quad\text{\textcolor{gray!70!black}{\footnotesize $\rightsquigarrow$~\texttt{#1}}}}
+
 % --- Zusaetzliche Macros (Theorie-Sektionen) -----------------------------
 \newcommand{\khat}{\hat{\mathbf{k}}}
 \newcommand{\bvec}{\mathbf{B}}
@@ -337,6 +348,35 @@ Fe-projizierte Thermodynamik sind \emph{nicht} Teil dieses Pakets.
 Diese Gr\"o\ss en lassen sich aus derselben DFT-Frequenzrechnung mit
 spezialisierten Werkzeugen separat berechnen.
 
+\begin{infobox}
+\textbf{Changelog-H\"ohepunkte seit v1.0.0.}
+Diese Manual-Ausgabe beschreibt das Paket im Stand v1.0.4
+(vollst\"andige Liste in \texttt{CHANGELOG.md}). Inhaltliche
+\"Anderungen seit v1.0.0:
+\begin{itemize}\setlength{\itemsep}{0pt}
+  \item \textbf{v1.0.2}: Bugfix in \texttt{\_build\_group\_map} --
+        verhindert stille Nullzeilen in den
+        \texttt{Groups\_OOP/INP/Tors}-Bl\"attern, wenn Residuennummern
+        mit Nicht-Protein-Eintr\"agen \"uberlappen (z.\,B.\ HOH-Wasser).
+        F\"ur Proteinsysteme mit L\"osungsmittelresiduen ist
+        mindestens v1.0.2 erforderlich.
+  \item \textbf{v1.0.3}: neue Diagnose-Ausgaben -- das
+        \texttt{Coordination}-Blatt dokumentiert die Ligand- und
+        Gruppen-Atomzuordnung (\S\ref{app:wb-main-coordination});
+        zwei zus\"atzliche UMAP-Einbettungen (SS-UMAP und Ca-UMAP)
+        zielen auf Protein-Dom\"anenmoden bzw.\ r\"aumlich
+        lokalisierte Moden (\S\ref{app:wb-embed-ssumap},
+        \S\ref{app:wb-embed-caumap}).
+  \item \textbf{v1.0.4}: auditgetriebene Korrekturen der
+        Unsicherheits-Fortpflanzung (\S\ref{sec:migration-v104}).
+        Werte unver\"andert; die \texttt{s\_*}-Spalten f\"ur
+        N-H-Stretches, SS-Element-Amplituden und SCSD-Amplituden
+        \"andern ihre Gr\"o\ss enordnung. Halb-offene
+        Fenstergrenzen und defensive Warnmeldungen sind ebenfalls
+        Teil dieses Release.
+\end{itemize}
+\end{infobox}
+
 \subsection{Voraussetzungen}
 
 \begin{itemize}
@@ -462,6 +502,7 @@ $\urms(\omega_l, m_{\mathrm{red}}, T)$ skaliert
   \urms(\omega, m_{\mathrm{red}}, T) \;=\;
   \sqrt{\frac{\hbar}{2\,m_{\mathrm{red}}\,\omega} \,
         \coth\!\left(\frac{\hbar\omega}{2\kB T}\right)} .
+  \codref{core.compute\_thermal\_amplitude}
   \label{eq:urms}
 \end{equation}
 
@@ -474,6 +515,216 @@ Die mit $\urms$ multiplizierten Eigenvektoren haben Einheit \AA{} und
 beschreiben die thermisch (oder bei $T \to 0$ rein quantenmechanisch)
 gemittelte Auslenkung pro Mode. Sie sind die Eingabe f\"ur s\"amtliche
 geometrischen Auswertungen ab \S\ref{sec:oop-inp}.
+
+% -------------------------------------------------------------------------
+\subsection{Unsicherheits-Propagation}
+\label{sec:uncertainty}
+
+Jede numerische Observable, die das Werkzeug ausgibt
+(\texttt{stretch}, \texttt{bend}, \texttt{kern\_d},
+\texttt{amplitude\_mean}, \texttt{hn\_stretch}, die SCSD-Amplituden,
+\ldots), wird mit einer Begleitunsicherheit versehen
+(\texttt{s\_stretch}, \texttt{s\_bend}, \texttt{s\_kern\_d},
+\ldots). Diese werden in erster Ordnung Gauss-propagiert aus zwei
+zugrundeliegenden Rauschquellen:
+\begin{itemize}\setlength{\itemsep}{0pt}
+  \item $\sigma_e := $ \texttt{cfg.sigma\_eigvec} (Standard $5\cdot 10^{-4}$):
+        numerisches Rauschen pro Eigenvektor-Komponente, in
+        kartesischen Einheiten des unskalierten Gaussian-Eigenvektors.
+        Steuert die Schwelle ``unbedeutender Beitrag'' f\"ur
+        verschiebungsbasierte Observablen.
+  \item $\sigma_c := $ \texttt{cfg.sigma\_coord} (Standard $10^{-3}$~\AA):
+        Koordinatenrauschen in \AA{}, f\"ur die SCSD-Referenz.
+\end{itemize}
+
+\subsubsection*{Konvention: thermisch skaliertes Sigma}
+\label{sec:uncertainty-convention}
+
+Alle geometrischen Observablen verwenden den \emph{thermisch
+skalierten} Eigenvektor $\evec_{l,i}\,\urms(\omega_l)$ mit
+Einheit \AA{}. Das begleitende Sigma wird mit derselben Skalierung
+propagiert:
+\begin{equation}
+  \sigma_e^\text{therm}(l) \;=\; \sigma_e \cdot \urms(\omega_l),
+  \codref{core.analyze\_his\_hn, core.analyze\_fe\_ligand}
+  \label{eq:sigma-therm}
+\end{equation}
+so dass das dimensionslose \emph{Signifikanzverh\"altnis}
+$|\text{Observable}|\,/\,\sigma$ unter der Wahl von $\urms$ invariant
+ist. Diese Konvention ist essenziell f\"ur die Wert/Sigma-Verh\"altnisse,
+die in der Farbkodierung der Excel-Bl\"atter verwendet werden.
+
+\paragraph{Konkrete Beispiele.} F\"ur eine typische Niederfrequenz-Mode
+mit $\urms \approx 0{,}05$~\AA{}:
+\begin{itemize}\setlength{\itemsep}{0pt}
+  \item Fe-X-Stretch ($i = $ Ligand, $j = $ Fe):
+        $|\evec_i - \evec_j|$ ist eine Differenz zweier unabh\"angiger
+        Gauss-Rauschkomponenten, also
+        $\sigma(\text{stretch}) = \sigma_e^\text{therm}\sqrt{2}
+        \approx 3{,}5\cdot 10^{-5}$~\AA.
+  \item Bend INP/OOP: gleicher Faktor $\sqrt{2}$ (Pythagor\"aische
+        Zerlegung \"andert die Rauschausbreitung entlang einer
+        einzelnen Achse nicht), also $\sigma_\text{bend\_inp}
+        = \sigma_\text{bend\_oop} = \sigma_e^\text{therm}\sqrt{2}$.
+  \item N-H-Stretch (\texttt{analyze\_his\_hn},
+        \texttt{include\_hn\_vibration}) folgt derselben Konvention:
+        $\sigma_\text{hn} = \sigma_e^\text{therm}\sqrt{2}$.
+  \item SS-Element-Amplitude:
+        $\sigma_\text{amp} = \sigma_e^\text{therm}\sqrt{N_\text{atoms}}$,
+        wobei das $\sqrt{N}$-Wachstum aus der Mittelung \"uber
+        $N_\text{atoms}$ im Sekund\"arstruktur-Element kommt.
+  \item SCSD-Amplituden: getrennte Sigmas f\"ur ``Referenz'' und
+        ``Verzerrung''. Die Referenz ist die statische
+        Geometrie-Unsicherheit $\sigma_c\sqrt{2}$, die Verzerrung
+        kombiniert Referenz- und Thermisches Rauschen:
+        $\sigma_\text{SCSD,dist}
+         = \sqrt{2}\sqrt{\sigma_c^2 + (\sigma_e \cdot \urms)^2}$.
+\end{itemize}
+
+\paragraph{\"Anderung in v1.0.4.} Drei dieser Sigma-Propagationen
+waren zuvor inkonsistent implementiert
+(\S\ref{sec:migration-v104}): dem N-H-Stretch fehlte die thermische
+Skalierung, das SS-Element verwendete eine fest verdrahtete Konstante
+statt \texttt{cfg.sigma\_eigvec}, und SCSD verwendete fest verdrahtete
+Referenzkonstanten statt \texttt{cfg.sigma\_coord} und
+\texttt{cfg.sigma\_eigvec}. Mit v1.0.4 respektieren alle Sigmas
+Gleichung~\ref{eq:sigma-therm} und die TOML-Einstellungen
+\texttt{cfg.sigma\_eigvec}/\texttt{sigma\_coord}.
+
+% -------------------------------------------------------------------------
+\subsection{Migrationshinweise zu v1.0.4}
+\label{sec:migration-v104}
+
+Version 1.0.4 ist ein Bugfix-Release, das die \emph{ausgegebenen
+Unsicherheiten} einiger Observablen ver\"andert, w\"ahrend die
+zugrundeliegenden \emph{Werte} unver\"andert bleiben. Falls Sie
+v1.0.2- oder v1.0.3-Ergebnisse besitzen (z.\,B.\ f\"ur ein
+Paper oder eine Dissertation), bitte vor dem Ziehen von
+Signifikanz-Schlussfolgerungen diesen Abschnitt lesen.
+
+\paragraph{Was sich nicht ge\"andert hat.} Alle geometrischen und
+energetischen Observablen -- \texttt{stretch}, \texttt{bend},
+\texttt{kern\_d}, \texttt{lambda\_X}, SCSD-Amplituden,
+\texttt{hn\_stretch}, SS-Element \texttt{amplitude\_mean},
+Einbettungs-Koordinaten -- liefern \emph{numerisch identische} Werte
+\"uber v1.0.2, v1.0.3 und v1.0.4 f\"ur dasselbe Eingabe-Log.
+Keine physikalische Interpretation bestehender Werte wird
+invalidiert.
+
+\paragraph{Was sich ge\"andert hat.}
+
+\begin{itemize}\setlength{\itemsep}{2pt}
+  \item \texttt{s\_hn\_stretch}: skaliert jetzt mit $\urms$
+        (Gl.~\ref{eq:sigma-therm}). F\"ur typische Niederfrequenz-Moden
+        ($\urms \sim 0{,}05$~\AA) macht das \texttt{s\_hn\_stretch}
+        etwa \textbf{20\,$\times$ kleiner} als in v1.0.2/v1.0.3.
+        Konsequenz: viele N-H-Stretches, die unter der alten
+        Konvention ``unter dem Rauschen'' erschienen, sind nun
+        korrekt als signifikante PCET-Signale identifizierbar.
+  \item \texttt{s\_amplitude\_mean} / \texttt{s\_axial\_amplitude} /
+        \texttt{s\_tilting\_angle} \ldots\ in
+        \texttt{analyze\_ss\_element}: vor v1.0.4 wurde eine fest
+        verdrahtete Konstante $1\cdot 10^{-4}$ statt
+        \texttt{cfg.sigma\_eigvec} verwendet. Mit dem Standard
+        $\sigma_e = 5\cdot 10^{-4}$ sind die neuen Sigmas
+        etwa \textbf{5\,$\times$ gr\"o\ss er}. Reklassifikation:
+        SS-Element-Eintr\"age, die unter dem alten Code als
+        ``signifikant'' markiert waren, k\"onnen nun als
+        ``marginal'' erscheinen.
+  \item \texttt{s\_SCSD\_*}: vor v1.0.4 wurden fest verdrahtete
+        Konstanten $5\cdot 10^{-7}$ / $5\cdot 10^{-6}$ statt
+        \texttt{cfg.sigma\_coord} und \texttt{cfg.sigma\_eigvec}
+        verwendet. Neue Sigmas sind etwa \textbf{1000\,$\times$
+        gr\"o\ss er}; die vorigen Werte waren physikalisch
+        unplausibel.
+  \item Fenstergrenzen-Behandlung: der Multi-Window-Modus
+        (\texttt{freq\_windows}) verwendete \emph{abgeschlossen-abgeschlossene}
+        Intervalle $[lo, hi]$, sodass eine Mode mit Frequenz exakt
+        auf einer Grenze in \emph{zwei} benachbarten Fenstern
+        erschien. Ab v1.0.4 sind die Grenzen \emph{halb-offen}
+        $[lo, hi)$, wobei das letzte Fenster $[lo, hi]$ bleibt.
+        Praktische Auswirkung: keine bei typischen Float-Frequenz-
+        Rechnungen, aber $B$-Faktor und
+        $\Lambda(\omega_\text{cut})$ sind nun garantiert ohne
+        Doppelz\"ahlung.
+  \item Defensive Warnmeldungen: einige interne Lookup-Fehler
+        (Fe-Ligand $c2l$-Miss, His-H $c2l$-Miss, fehlender
+        PCET-Acceptor-Index, Null-Zeilen in den Excel-Bl\"attern,
+        mehrdeutige PDB-Gaussian-Atomzuordnungen) waren zuvor
+        stille Durchl\"aufe. Mit v1.0.4 wird f\"ur jeden dieser
+        F\"alle bei seinem ersten Auftreten in einem Lauf ein
+        \texttt{UserWarning} ausgegeben (pro Session dedupliziert).
+        Falls Sie in einem zuvor stillen Log neue Warnungen sehen,
+        pr\"ufen Sie die betroffenen Liganden- oder
+        Atomzuordnungen, bevor Sie den entsprechenden Excel-Zeilen
+        vertrauen.
+  \item Interpolations-Randanker (FUND~12, vom Anwender gemeldet):
+        wenn \texttt{freq\_max} gesetzt ist und die n\"achste Mode
+        oberhalb mehr als \texttt{interp\_context\_cm1} (Standard
+        $5$~cm$^{-1}$) entfernt liegt, wurde vor v1.0.4 keine
+        Kontextmode geladen und die interpolierte pDOS fiel knapp
+        unterhalb \texttt{freq\_max} steil ab. Mit v1.0.4 wird
+        genau \emph{eine} zus\"atzliche Mode -- die n\"achste
+        oberhalb \texttt{freq\_max} -- als Fallback-Anker geladen,
+        sodass $\texttt{np.interp}$ unabh\"angig von der Modendichte
+        immer einen Randanker hat. Derselbe Fallback wirkt
+        symmetrisch bei \texttt{freq\_min}. Das Run-Log dokumentiert,
+        wann der Fallback ausgel\"ost wurde.
+  \item Synthetischer Null-Anker am oberen Rand (FUND~13): wenn
+        keine reale Mode oberhalb \texttt{freq\_max} existiert
+        (das DFT-Spektrum endet innerhalb des Analysebereichs),
+        f\"ugt v1.0.4 eine \emph{synthetische Null-Mode} bei
+        $\texttt{freq\_max} + \texttt{interp\_context\_cm1}$ mit
+        allen Observablen $= 0$ ein. Das ergibt einen glatten Abfall
+        der interpolierten pDOS \"uber die Pufferzone statt einer
+        Stufe am oberen Rand. Die synthetische Mode ist mit
+        \texttt{mode\_type = "synthetic\_zero"} und
+        \texttt{precision = "synthetic"} markiert und tr\"agt per
+        Konstruktion null zu $B$-Faktoren,
+        $\Lambda_X^\text{total}$ und den Modulationsspektren bei.
+\end{itemize}
+
+\paragraph{Post-Release-Audit-Patches (Mai 2026).} Nach dem
+v1.0.4-Release identifizierte ein Audit eines realen
+[2Fe-2S]-Cys$_2$His$_2$-Batch-Runs (Rieske-Typ in beiden
+Protonierungszust\"anden) vier zus\"atzliche Warn- und Reporting-Probleme. Keines beeinflusst
+numerische Ausgaben. Vollst\"andige Beschreibungen sind im Supplement
+(FUND 14--17); in K\"urze:
+
+\begin{itemize}\setlength{\itemsep}{2pt}
+  \item FUND 14: Die Warnung
+        ``\texttt{His\_HN NICHT erkannt}'' wurde pro deprotoniertem
+        His \emph{zweimal} statt einmal ausgegeben. Behoben durch
+        Verschiebung der Warnung aus der inneren
+        PDB-vs-Gaussian-Fallback-Schleife heraus.
+  \item FUND 15: F\"ur Systeme mit deprotonierten His-Liganden
+        (z.\,B.\ Rieske-Typ Cys$_2$His$_2$ im deprotonierten
+        Zustand oder mitoNEET-Typ Cys$_3$His nach Deprotonierung) sagte die PCET-Disabled-
+        Meldung ``\texttt{no His ligands at cluster}'', obwohl
+        \texttt{Fe\_N\_His}-Bl\"atter und \texttt{Lambda\_FeN}
+        klar belegten, dass His-Liganden vorhanden waren. Der
+        Entscheidungstext unterscheidet jetzt zwischen ``keine His
+        \"uberhaupt'' und ``His vorhanden, aber alle deprotoniert''.
+  \item FUND 16: Die Warnung
+        ``\texttt{interp\_boundary\_mode='context' but no context
+        modes available}'' wurde auch bei Full-Spectrum-Runs
+        ausgegeben (\texttt{freq\_min}/\texttt{freq\_max} beide
+        \texttt{None}), wo gar kein Context-Loading versucht wird.
+        Die Warnung wird jetzt nur emittiert, wenn der Benutzer
+        explizit ein Fenster gesetzt hat.
+  \item FUND 17: REPORT.txt zeigte \texttt{freq\_filter: - - -
+        cm-1}, wenn nur \texttt{freq\_windows} gesetzt war, und
+        versteckte damit den aktiven Filter vom Audit-Trail. Der
+        Report emittiert jetzt eine zus\"atzliche
+        \texttt{freq\_windows: [...]}-Zeile.
+\end{itemize}
+
+\paragraph{Re-Berechnung vorhandener Daten.} Empfehlung: f\"uhren Sie
+vorhandene TOML-Konfigurationen unter v1.0.4 erneut aus und
+vergleichen Sie die \texttt{s\_*}-Spalten von
+\texttt{Fe\_S\_Cys.xlsx}, \texttt{His\_HN.xlsx}, \texttt{SCSD.xlsx}
+und die SS-Element-Bl\"atter. Die Werte sind identisch; nur Sigmas
+und die Signifikanz-F\"arbung \"andern sich.
 
 % -------------------------------------------------------------------------
 \subsection{OOP/INP-Klassifikation}
@@ -499,6 +750,7 @@ $\tilde{\rvec}_i = \rvec_i - \bar{\rvec}$ \cite{Kabsch1976}:
   \tilde{\mathbf{R}} \;=\; \mathbf{U}\,\boldsymbol{\Sigma}\,\mathbf{V}^\top ,
   \qquad
   \nhat \;=\; \mathbf{V}_{:,3}\,.
+  \codref{geometry.cluster\_normal}
   \label{eq:cluster-normal-svd}
 \end{equation}
 
@@ -527,13 +779,29 @@ Verh\"altnis der Quadratsummen \cite{Gee2021}:
   \frac{\sum_{i \in G} \lVert\evec_{l,i}^{\OOP}\rVert^2}
        {\sum_{i \in G} \lVert\evec_{l,i}\rVert^2} \,\cdot\, 100\,\%
   \,.
+  \codref{core.classify\_oop\_inp}
   \label{eq:oop-anteil}
 \end{equation}
 
-Da die Eigenvektoren mass-gewichtet sind, ist
-$\alpha_{\OOP}$ zugleich der \emph{kinetische-Energie-Anteil} der Mode,
-der senkrecht zur Cluster-Ebene flie\ss t -- dieser Bezug ist wichtig
-f\"ur die sp\"atere Verbindung zur NRVS-Polarisationsabh\"angigkeit.
+\begin{infobox}
+\textbf{Hinweis zur physikalischen Interpretation.}
+Gaussians \texttt{hpmodes}-Block schreibt
+\emph{kartesische Verschiebungs-Eigenvektoren}~$\evec_{l,i}$ (bereits
+massen-entzogen via Gl.~\ref{eq:demass}), normiert so, dass
+$\sum_i \lVert\evec_{l,i}\rVert^2 \approx 1$ statt der mass-gewichteten
+Norm $\sum_i m_i \lVert\evec_{l,i}\rVert^2$.
+Gleichung~\ref{eq:oop-anteil} misst daher den
+\emph{geometrischen kartesischen Out-of-Plane-Anteil}: sie sagt, welcher
+Anteil der quadrierten kartesischen Verschiebungsamplituden aus der
+Cluster-Ebene zeigt. Sie entspricht \emph{nicht} dem
+kinetischen-Energie-Anteil der senkrecht zur Ebene flie\ss enden Mode,
+welcher die mass-gewichtete Form
+$\sum_i m_i \lVert\evec_{l,i}^{\OOP}\rVert^2 / \sum_i m_i \lVert\evec_{l,i}\rVert^2$
+erfordern w\"urde. F\"ur einen [2Fe-2S]-Cluster sind beide Gr\"o\ss en
+numerisch \"ahnlich (nur Fe und S tragen bei, mit vergleichbaren
+Massen), aber die Unterscheidung ist wichtig beim Vergleich von
+$\alpha_{\OOP}$-Werten zwischen chemisch verschiedenen Systemen.
+\end{infobox}
 
 \subsubsection*{Bin\"are und feine Klassifikation}
 
@@ -664,6 +932,112 @@ Geometrien dominieren INP-Modes, in flexiblen Liganden-Sph\"aren
 finden sich mehr Gemischte.)
 
 % -------------------------------------------------------------------------
+\subsection{Fe-Ligand-Bindungs-Zerlegung: Stretch, Bend INP, Bend OOP}
+\label{sec:fe-lig-decomp}
+
+Die OOP/INP-Zerlegung aus \S\ref{sec:oop-inp} gilt f\"ur den
+\emph{Cluster-Kern} (Fe$_1$, Fe$_2$, S$_1$, S$_2$). Eine zweite
+Zerlegung wird f\"ur jede Fe-Ligand-Bindung
+(Fe-S$_\text{Cys}$, Fe-N$_\text{His}$, Fe-O$_\text{Asp/Glu}$)
+durchgef\"uhrt: die Relativ\-verschiebung der beiden Bindungspartner
+wird in eine \emph{Stretch}-Komponente (entlang der Bindungsachse)
+und eine \emph{Bend}-Komponente (senkrecht dazu) zerlegt, wobei der
+Bend weiter in INP und OOP relativ zur Cluster-Ebene aufgeteilt wird.
+
+Seien $\evec_\text{Fe}$ und $\evec_\text{Ligand}$ die thermisch
+skalierten Verschiebungen des Fe-Atoms und des Ligand-Donor-Atoms,
+und sei
+\begin{equation}
+  \hat{\mathbf{b}} = \frac{\rvec_\text{Ligand} - \rvec_\text{Fe}}
+                            {\lVert\rvec_\text{Ligand} - \rvec_\text{Fe}\rVert}
+\end{equation}
+der Einheitsvektor von Fe zum Ligand-Donor in der Gleichgewichts-
+Geometrie. Definiere die Relativ\-verschiebung
+\begin{equation}
+  \Delta\evec = \evec_\text{Ligand} - \evec_\text{Fe}.
+  \label{eq:fe-lig-delta}
+\end{equation}
+
+\paragraph{Zerlegung entlang und senkrecht zur Bindung.}
+Die vorzeichenbehaftete Stretch-Komponente ist die Projektion auf
+$\hat{\mathbf{b}}$, der Bend-Vektor ist der Rest:
+\begin{equation}
+  \Delta r_\text{stretch} = \Delta\evec \cdot \hat{\mathbf{b}},
+  \qquad
+  \Delta\evec_\perp = \Delta\evec
+                       - \Delta r_\text{stretch}\hat{\mathbf{b}}.
+  \label{eq:fe-lig-perp}
+\end{equation}
+
+\paragraph{Zerlegung des Bends in INP und OOP.}
+Die Cluster-Normale $\hat{\mathbf{n}}$ (\S\ref{sec:oop-inp}) zerlegt
+$\Delta\evec_\perp$ weiter in eine Komponente entlang $\hat{\mathbf{n}}$
+(aus der Cluster-Ebene) und einen Rest (in der Cluster-Ebene):
+\begin{align}
+  \Delta r_\text{bend\_oop} &= \Delta\evec_\perp \cdot \hat{\mathbf{n}},
+  \qquad\text{(vorzeichenbehaftet)} \\
+  \Delta r_\text{bend\_inp} &= \lVert\Delta\evec_\perp
+       - \Delta r_\text{bend\_oop}\hat{\mathbf{n}}\rVert.
+  \codref{core.analyze\_fe\_ligand}
+  \label{eq:fe-lig-bend-split}
+\end{align}
+Die ausgegebenen \texttt{bend}-, \texttt{bend\_inp}- und
+\texttt{bend\_oop}-Spalten in \texttt{Fe\_S\_Cys.xlsx} /
+\texttt{Fe\_N\_His.xlsx} sind die \emph{Absolutwerte} (L\"angen)
+dieser drei Gr\"o\ss en, alle in \AA{}. Nach Pythagoras gilt
+\begin{equation}
+  \lVert\Delta\evec_\perp\rVert^2
+    = (\Delta r_\text{bend\_inp})^2 + (\Delta r_\text{bend\_oop})^2,
+\end{equation}
+was der nat\"urlichen Energie-Zerlegung der Bend-Mode entspricht.
+
+\paragraph{Bend-INP/OOP-Prozente.}
+F\"ur Vergleiche von Moden mit sehr unterschiedlichen
+Gesamt-Amplituden werden die absoluten L\"angen in
+\emph{Quadratamplituden-Anteile} relativ zum Gesamt-Bend umgewandelt:
+\begin{equation}
+  \text{bend\_inp\_pct} = 100 \cdot
+     \frac{(\Delta r_\text{bend\_inp})^2}
+          {(\Delta r_\text{bend\_inp})^2 + (\Delta r_\text{bend\_oop})^2},
+\end{equation}
+und analog \texttt{bend\_oop\_pct}. Die beiden summieren sich
+exakt zu 100\,\%. F\"ur sehr kleine Gesamt-Bends (unter dem
+Rauschniveau $2\sigma_e^\text{therm}\sqrt{2}$,
+\S\ref{sec:uncertainty}) werden die Prozente auf NaN gesetzt,
+um numerisches Rauschen nicht zu verst\"arken.
+
+\paragraph{Sigma-Propagation.}
+Alle drei Gr\"o\ss en (stretch, bend\_inp, bend\_oop) sind
+Differenzen zweier unabh\"angiger Gauss-Rauschkomponenten und tragen
+daher das Standard-$\sqrt{2}\,\sigma_e^\text{therm}$-Sigma:
+\begin{equation}
+  \sigma_\text{stretch} = \sigma_\text{bend\_inp}
+  = \sigma_\text{bend\_oop}
+  = \sqrt{2}\,\sigma_e \cdot \urms(\omega_l).
+\end{equation}
+Die Sigmas werden in die
+\texttt{Fe\_S\_Cys.xlsx}-/\texttt{Fe\_N\_His.xlsx}-Dateien unter
+\texttt{s\_stretch}, \texttt{s\_bend\_inp}, \texttt{s\_bend\_oop}
+geschrieben und f\"ur die Signifikanz-F\"arbung der Bend-Zellen
+verwendet.
+
+\paragraph{Physikalische Interpretation.}
+F\"ur PCET-Anwendungen ist die INP/OOP-Aufteilung des
+Fe-N(His)-Bends besonders informativ:
+\begin{itemize}\setlength{\itemsep}{0pt}
+  \item \emph{bend\_inp dominant} ($>$70\,\%): der His-Ring wippt
+        in der Cluster-Ebene -- eine Bewegung, die den
+        Fe-Fe-Abstand und den Eisen-Schwefel-Kern stark moduliert,
+        klassisch ET-aktiv.
+  \item \emph{bend\_oop dominant} ($>$70\,\%): der His-Ring kippt
+        aus der Ebene heraus, was die N-H-Bindungsrichtung
+        moduliert -- Kopplungs-Kanal f\"ur PT zu einem vergrabenen
+        Akzeptor.
+  \item \emph{gemischt} (30--70\,\%): die Mode tr\"agt gleichzeitig
+        zu ET- und PT-Pfaden bei -- typische PCET-Signatur.
+\end{itemize}
+
+% -------------------------------------------------------------------------
 \subsection{SCSD nach Kingsbury \& Senge}
 \label{sec:scsd}
 
@@ -781,6 +1155,7 @@ Die SCSD-Projektion liefert acht Amplituden \cite{Kingsbury2024}:
   \mathbf{P}_{\mathrm{D}_{2\mathrm{h}}}\bigl(\evec_l^{\text{Cluster}} \,\urms\bigr) ,
   \qquad
   \mathbf{a}_l \in \mathbb{R}^8 .
+  \codref{core.compute\_scsd\_for\_mode\_full}
   \label{eq:scsd-projection}
 \end{equation}
 
@@ -1791,10 +2166,18 @@ reduziert sich das (mit $\mu = m_\text{mode}$) auf
 \begin{equation}
   \lambda_X(i) \to \tfrac{\hbar\omega_i}{4} \cdot \alpha_X^2(i),
 \end{equation}
-wobei $\alpha_X(i) \in [0, 1]$ der Anteil der Mode auf der Bindung $X$
-ist. Damit hat eine reine Streckmode der Bindung ($\alpha = 1$) bei
-$T \to 0$ einen Reorg-Beitrag von $\hbar\omega/4$ (Nullpunkts-Energie
-geteilt durch 2).
+wobei $\alpha_X(i)$ der dimensionslose ``Mode-Anteil'' der Bindung $X$
+ist, implizit definiert durch
+$\Delta r_X(i) = u_\text{rms}(i) \cdot \alpha_X(i)$. F\"ur eine reine
+Streckmode der Bindung $X$ gilt $\alpha_X(i) = 1$, und der
+Reorganisations-Beitrag bei $T \to 0$ ist $\hbar\omega/4$
+(Nullpunkts-Energie geteilt durch 2). In der Praxis kann $\alpha_X(i)$
+auch gr\"o\ss er als $1$ sein f\"ur Moden, in denen die zwei
+Bindungspartner stark gegeneinander schwingen
+(Relativ-Verschiebungs-Verst\"arkung); das ist geometrisch legitim
+und verletzt kein Erhaltungsgesetz -- die Eigenvektor-Normierung
+$\sum_i \lVert\evec_i\rVert^2 \approx 1$ ist eine Summe \"uber
+\emph{Atome}, nicht \"uber Bindungen.
 
 \paragraph{Bedeutung f\"ur PCET-Studien.}
 \begin{itemize}\setlength{\itemsep}{0pt}
@@ -1867,6 +2250,7 @@ Bindungsl\"angen-Modulation
   = (\mathbf{e}_a - \mathbf{e}_b) \cdot \hat{\mathbf{n}}_{ab},
   \qquad
   \hat{\mathbf{n}}_{ab} = \frac{\mathbf{r}_a - \mathbf{r}_b}{\|\mathbf{r}_a - \mathbf{r}_b\|}.
+  \codref{reorganization.signed\_dr\_along\_axis}
   \label{eq:dr-classical}
 \end{equation}
 Konvention: $\Delta r > 0$ heisst "`Bindung dehnt sich"'.
@@ -1888,6 +2272,7 @@ N$\to$Akzeptor-Achse:
   = (\mathbf{e}_H - \mathbf{e}_N) \cdot \hat{\mathbf{n}}_{NA},
   \qquad
   \hat{\mathbf{n}}_{NA} = \frac{\mathbf{r}_A - \mathbf{r}_N}{\|\mathbf{r}_A - \mathbf{r}_N\|}.
+  \codref{reorganization.compute\_mode\_modulations}
   \label{eq:dr-reaction-coord}
 \end{equation}
 Wenn nur der Akzeptor sich bewegt (Skelett-Mode), ist
@@ -1971,6 +2356,7 @@ Modes wird das mit dem quadrierten Mode-Anteil $\alpha_X^2$ multipliziert.
 
 \begin{equation}
   \Lambda_X^\text{total} = \sum_{i=1}^{N_\text{modes}} \lambda_X(i)
+  \codref{reorganization.compute\_total\_reorganization}
   \label{eq:lambda-total}
 \end{equation}
 
@@ -1980,17 +2366,50 @@ Die Summen werden zus\"atzlich \emph{frequenzaufgel\"ost} ausgegeben:
 
 \begin{itemize}
   \item \textbf{Modulations-Spektren} $M_X(\omega)$ -- Gauss-
-        verbreiterte Akkumulation der absoluten Modulationen:
+        verbreiterte Akkumulation der Bindungs-Modulationen je Mode
+        entlang der Frequenzachse:
         \begin{equation}
           M_X(\omega)
-          = \sum_{i=1}^{N} |\Delta r_X(i)|\,
+          = \sum_{i=1}^{N_\text{modes}}
+            \Delta r_X^\text{RSS}(i)\,
             \mathcal{G}(\omega - \omega_i, \sigma_M),
           \quad
           \mathcal{G}(x,\sigma) = \frac{e^{-x^2/(2\sigma^2)}}{\sigma\sqrt{2\pi}}.
+          \codref{reorganization.compute\_modulation\_spectra}
           \label{eq:M-spectrum}
         \end{equation}
-        Default: $\sigma_M = 5$\,cm$^{-1}$, einstellbar via
-        \texttt{reorg\_spectrum\_sigma\_cm1}.
+        Default-Verbreiterung: $\sigma_M = 5$\,cm$^{-1}$, einstellbar
+        via \texttt{reorg\_spectrum\_sigma\_cm1}.
+
+        \medskip
+        \noindent\textbf{Was ist $\Delta r_X^\text{RSS}(i)$ genau?}
+        Jeder Eltern-Kanal
+        $X \in \{\text{FeFe}, \text{FeN}, \text{FeS}, \text{NH}, \text{HA}\}$
+        kann mehrere \emph{Sub-Kan\"ale} haben: z.\,B.\ enth\"alt FeN
+        die beiden Fe-N(His$_a$)- und Fe-N(His$_b$)-Sub-Bindungen, FeS
+        enth\"alt alle vier Fe-S(Cys$_k$)-Sub-Bindungen (bzw.\ zwei
+        f\"ur Cys$_2$His$_2$-Cluster). F\"ur Mode $i$ aggregieren wir
+        daher die Sub-Kanal-Modulationen als gewichtete
+        Wurzel-Quadratsumme
+        \begin{equation}
+          \Delta r_X^\text{RSS}(i)
+            \;=\; \sqrt{\sum_{s \in \text{Sub-Kan\"alen}(X)}
+                          w_s\,(\Delta r_X^{(s)}(i))^2},
+          \codref{reorganization.aggregate\_by\_parent}
+          \label{eq:dr-rss}
+        \end{equation}
+        wobei die Gewichte $w_s$ aus
+        \texttt{build\_channels\_from\_coord\_info} stammen
+        (Gauss-Gewichtung des H$\cdot\cdot\cdot$Akzeptor-Abstands
+        f\"ur HA, eins f\"ur FeFe/FeN/FeS/NH). F\"ur Eltern-Kan\"ale
+        mit nur einem Sub-Kanal (FeFe, NH, HA-pro-Akzeptor) reduziert
+        sich das zu $\sqrt{w}\,|\Delta r_X(i)|$, also wieder die
+        einfache absolute Modulation. Die RSS-Aggregation ist die
+        \emph{energetisch konsistente} Wahl: sie erf\"ullt
+        $\lambda_X^\text{Eltern}(i) = \tfrac{1}{2}\mu_i\omega_i^2
+        \,(\Delta r_X^\text{RSS}(i))^2$, wobei
+        $\lambda_X^\text{Eltern}$ die gewichtete Summe der
+        Sub-Kanal-$\lambda$'s ist.
 
   \item \textbf{Co-Modulations-Spektren} -- geometrisches Mittel
         zweier $M_X$-Spektren, hoch nur dort, wo \emph{gleichzeitig}
@@ -2276,6 +2695,30 @@ $^{57}$Fe-projizierte Beitr\"age oberhalb $\sim$800 cm$^{-1}$
 verschwindend klein sind und NRVS-Experimente in dem Bereich messen,
 ist eine 800-cm$^{-1}$-Grenze sowohl experimentell als auch numerisch
 sinnvoll.
+\end{infobox}
+
+\begin{infobox}
+\textbf{Fenstergrenzen-Konvention (seit v1.0.4).}
+Der Multi-Window-Modus partitioniert Modes in Bins
+\texttt{[(lo$_1$,hi$_1$), (lo$_2$,hi$_2$), \ldots, (lo$_N$,hi$_N$)]}.
+Die Grenzen sind \emph{halb-offen von links}:
+\begin{itemize}\setlength{\itemsep}{0pt}
+  \item Jedes Fenster au\ss er dem letzten verwendet das Intervall
+        $[\,\text{lo},\, \text{hi}\,)$. Eine Mode mit Frequenz exakt
+        auf einer Fenstergrenze geh\"ort zum \emph{oberen} Fenster
+        (dem, das bei diesem Wert beginnt).
+  \item Das letzte Fenster der Liste verwendet
+        $[\,\text{lo},\, \text{hi}\,]$, sodass seine obere Kante
+        eingeschlossen ist. Falls \texttt{hi} f\"ur das letzte
+        Fenster \texttt{None}/\texttt{inf} ist, ist es nach oben
+        offen.
+\end{itemize}
+Damit wird garantiert, dass jede Mode in genau einem Fenster z\"ahlt,
+und Doppelz\"ahlungen von $B$-Faktor-Beitr\"agen und
+$\Lambda_X(\omega_\text{cut})$-Werten f\"ur Grenz-Modes
+verhindert (\S\ref{sec:migration-v104}). Vor v1.0.4 wurden an beiden
+Enden geschlossene Intervalle verwendet, die exakt auf der Grenze
+liegende Modes doppelt z\"ahlten.
 \end{infobox}
 
 \subsection{Thermik}
@@ -3491,16 +3934,170 @@ Sheet bei wiederholten L\"aufen reproduzierbar bleibt. F\"ur eine
 formale Robustheits-Studie m\"usste man manuell mehrere Seeds laufen
 lassen und Cluster-Konsistenz pr\"ufen (Adjusted Rand Index, NMI).
 
+\subsection{Z-Scores, Fisher-F und der Diskriminanz-Score}
+\label{sec:zscore-fisher}
+
+Das Sheet \texttt{UMAP\_Cluster\_Profil} zeigt nicht die rohen
+Feature-Werte pro Cluster (die w\"aren \"uber Features mit
+unterschiedlichen physikalischen Einheiten schwer interpretierbar),
+sondern drei abgeleitete Statistiken: den \emph{Z-Score}, die
+\emph{Fisher-F-Statistik} und den \emph{Diskriminanz-Score}. Sie
+beantworten drei verschiedene Fragen, und die Kombination aller
+drei ist es, die die Cluster-Labels physikalisch sinnvoll macht.
+Wir definieren sie nacheinander.
+
+\subsubsection*{Z-Score: wie ungew\"ohnlich ist dieser Cluster bei diesem Feature?}
+
+F\"ur ein Feature $f$ (z.\,B.\ \texttt{kern\_OOP\%}) und ein Cluster
+$C_k$:
+\begin{equation}
+  z_{k,f} = \frac{\bar{x}_{k,f} - \bar{x}_f}{\sigma_f}
+\end{equation}
+wobei $\bar{x}_{k,f}$ der Mittelwert von Feature $f$ innerhalb von
+Cluster $C_k$ ist, $\bar{x}_f$ der globale Mittelwert von $f$
+\"uber \emph{alle} Modes, und $\sigma_f$ die globale
+Standardabweichung. Der Z-Score ist dimensionslos: $z = +2{,}0$
+bedeutet, der Cluster liegt zwei Standardabweichungen \"uber dem
+globalen Mittel f\"ur dieses Feature, $z = -1{,}5$ bedeutet, er
+liegt 1,5 Standardabweichungen darunter.
+
+Z-Scores sind also ein Cluster-Fingerabdruck: ein Cluster mit
+$z_{\text{kern\_OOP}\%} = +2{,}5$,
+$z_{\text{Umbrella}} = +2{,}1$ und
+$z_{\text{Breathing}} = -0{,}1$ ist klar ein Out-of-Plane-Umbrella-Cluster,
+unabh\"angig davon, was die absoluten Werte der zugrundeliegenden
+Features sind. Deshalb ist das Z-Score-Profil der nat\"urliche Weg,
+einem Cluster einen physikalischen Charakter zuzuweisen.
+
+\paragraph{Warum global standardisiert wird, nicht pro Cluster.}
+Wir benutzen das globale $\sigma_f$ im Nenner, nicht das
+clusterinterne $\sigma$. Das globale $\sigma$ ist eine feste
+Eigenschaft des Systems, sodass $z_{k,f}$-Werte direkt zwischen
+Features und zwischen Clustern verglichen werden k\"onnen. Ein
+clusterinternes $\sigma$ w\"urde den Score von Cluster-Gr\"o\ss e
+und der Geometrie des Clusters selbst abh\"angig machen, was die
+Frage, die wir beantworten wollen, verzerren w\"urde.
+
+\subsubsection*{Fisher-F-Statistik: wie cluster-spezifisch ist dieses Feature?}
+
+Ein Feature kann in einem Cluster einen gro\ss en Z-Score allein
+durch Zufall haben, besonders bei kleinen Clustern. Die
+Fisher-F-Statistik misst, ob das Feature \emph{tats\"achlich}
+zwischen Clustern diskriminiert, indem sie die Varianz zwischen
+Clustern mit der Varianz innerhalb von Clustern vergleicht:
+\begin{equation}
+  F_f = \frac{
+    \sum_k n_k\,(\bar{x}_{k,f} - \bar{x}_f)^2 / (K - 1)
+  }{
+    \sum_k \sum_{i \in C_k} (x_{i,f} - \bar{x}_{k,f})^2 / (N - K)
+  }
+\end{equation}
+wobei $K$ die Anzahl der Cluster ist, $N$ die Gesamtzahl der Modes
+und $n_k$ die Gr\"o\ss e von Cluster $C_k$. Der Z\"ahler ist die
+Varianz der Cluster-Mittel um das globale Mittel (Signal), der
+Nenner ist die mittlere Varianz innerhalb der Cluster (Rauschen).
+Berechnet \"uber \texttt{scipy.stats.f\_oneway}, ist dies die
+Standard-Einweg-ANOVA-F-Statistik.
+
+Interpretation:
+\begin{itemize}\setlength{\itemsep}{0pt}
+  \item $F_f \gg 1$: das Feature variiert deutlich mehr
+        \emph{zwischen} Clustern als \emph{innerhalb} -- es ist
+        ein diskriminierendes Feature, und Z-Scores auf diesem
+        Feature sind statistisch sinnvoll.
+  \item $F_f \approx 1$: zwischen-Cluster-Varianz ist \"ahnlich
+        zur intra-Cluster-Varianz -- das Feature trennt die
+        Cluster nicht; Z-Scores f\"ur dieses Feature sollten
+        ignoriert werden, auch wenn sie gro\ss\ aussehen.
+  \item $F_f \ll 1$ oder $F_f = 0$: das Feature ist im Wesentlichen
+        konstant oder Rauschen (z.\,B.\ Null-Amplitude auf allen
+        Modes f\"ur Sekund\"arstruktur-Features in einem System
+        ohne dieses SS-Element).
+\end{itemize}
+
+Die Fisher-F wird einmal pro Feature berechnet, unabh\"angig vom
+Cluster -- sie ist eine globale Eigenschaft der Partition.
+
+\subsubsection*{Diskriminanz-Score: welche Features definieren einen Cluster?}
+
+Z-Score und Fisher-F beantworten unterschiedliche Fragen: der
+Z-Score sagt uns, \emph{in welche Richtung} ein Cluster
+ungew\"ohnlich ist, und der Fisher-F sagt uns, \emph{ob} diese
+Richtung verl\"asslich ist. Ihre Kombination ist der
+Diskriminanz-Score
+\begin{equation}
+  d_{k,f} = |z_{k,f}|\,\sqrt{F_f},
+  \label{eq:discriminant}
+\end{equation}
+wobei der Betrag dient, damit ``ungew\"ohnlich hoch'' und
+``ungew\"ohnlich niedrig'' gleich gewichtet werden. Die Wurzel auf
+$F_f$ rechnet die F-Statistik von einer Varianz-Ratio in eine
+Standardfehler-Skala um, sodass $|z|$ und $\sqrt{F}$ vergleichbare
+Einheiten haben.
+
+F\"ur jeden Cluster sortiert das Sheet \texttt{UMAP\_Cluster\_Profil}
+die Features absteigend nach $d_{k,f}$ und listet die ersten als
+charakteristische Eigenschaften des Clusters. Ein Feature steht
+oben in der Liste, wenn es \emph{sowohl} einen gro\ss en Z-Score
+hat (der Cluster ist auf diesem Feature ungew\"ohnlich) \emph{als
+auch} eine gro\ss e Fisher-F (das Feature diskriminiert
+tats\"achlich zwischen Clustern).
+
+\paragraph{Beispielrechnung.}
+Cluster~3 habe
+$z_{\text{kern\_OOP}\%} = +2{,}5$ mit $F_{\text{kern\_OOP}\%} = 81$,
+und $z_{\text{His255\_amplitude}} = +1{,}9$ mit
+$F_{\text{His255\_amplitude}} = 4$.
+Die Diskriminanz-Scores sind
+$d_{3,\text{kern\_OOP}\%} = 2{,}5\,\sqrt{81} = 22{,}5$ und
+$d_{3,\text{His255\_amplitude}} = 1{,}9\,\sqrt{4} = 3{,}8$.
+Obwohl die Z-Scores \"ahnlich sind, rangiert \texttt{kern\_OOP\%}
+sechsfach h\"oher in der Diskriminanz-Reihenfolge und wird als
+dominanter Charakter von Cluster~3 ausgegeben. Die His255-Amplitude
+hat in genau diesem Cluster den gr\"o\ss eren Z-Score, ist aber
+\"uber alle Cluster hinweg im Wesentlichen Rauschen ($F = 4$ ist
+grenzwertig), und sollte daher nicht als definierend gelesen
+werden.
+
+\subsubsection*{Was man in der Praxis mit den Zahlen tut}
+
+\begin{itemize}\setlength{\itemsep}{2pt}
+  \item Sheet \texttt{UMAP\_Cluster\_Profil} \"offnen.
+  \item Pro Cluster die \emph{Top-3-Features} nach
+        Diskriminanz-Score betrachten.
+  \item Wenn $d > 5$ f\"ur das Top-Feature: der Cluster hat einen
+        klaren physikalischen Charakter; ein Label vergeben
+        (z.\,B.\ ``OOP-Umbrella'', ``Cluster-Breathing'',
+        ``His-N-Stretch'').
+  \item Wenn $d < 2$ f\"ur alle Features in einem Cluster: der
+        Cluster ist statistisch schwach; als undifferenzierter
+        Rausch-Cluster behandeln, nicht als eigenst\"andige
+        Mode-Familie.
+  \item \"Uber Cluster hinweg: schauen, \emph{welche Features
+        immer wieder oben auftauchen}. Das sind die Richtungen,
+        entlang derer UMAP die Modes tats\"achlich organisiert.
+        Features, die in keinem Cluster oben auftauchen, tragen
+        zum Embedding nichts bei.
+\end{itemize}
+
+F\"ur typische [2Fe-2S]-L\"aufe bei 5\,K mit dem 31-Feature-Standard
+sind die dominierenden diskriminierenden Features in der Regel
+\texttt{kern\_OOP\%}, \texttt{Breathing}, \texttt{Umbrella} und die
+\texttt{His\_*\_Amplitude}-Spalten -- konsistent damit, dass die
+Cluster-Modes den gr\"o\ss ten Teil der spektroskopischen
+Information tragen.
+
 \subsection{Sinnvolle Cluster?}
 
-Nach dem Lauf das Sheet \texttt{UMAP\_Cluster\_Profil} \"offnen.
+Nach dem Lauf das Sheet \texttt{UMAP\_Cluster\_Profil} \"offnen
+(siehe \S\ref{sec:zscore-fisher} f\"ur die Bedeutung der Spalten).
 Pro Cluster sollten die Z-Score-Profile physikalisch sinnvoll sein:
 hoch korrelierte Features (z.\,B.\ \texttt{kern\_OOP\%} mit
 \texttt{Umbrella}, oder \texttt{His 255\_INP} mit
 \texttt{His 255\_bend\_inp}) landen typischerweise in denselben
 Cluster-Profilen. Wenn ein Cluster im Profil keinen klaren
-Charakter zeigt (alle Z-Scores nahe 0), ist er statistisch
-unsicher und sollte ignoriert werden.
+Charakter zeigt (alle Z-Scores nahe 0, alle Diskriminanz-Scores
+unter 2), ist er statistisch unsicher und sollte ignoriert werden.
 
 \subsection{Vergleich verschiedener Systeme im Embedding}
 
@@ -5150,6 +5747,40 @@ Tabelle der Gleichgewichts-Bindungsl\"angen aller relevanten
 Cluster- und Liganden-Bindungen. Eine Zeile pro Bindung. Spalten:
 Bindungs-Bezeichnung, Distanz in $\angstrom$, Atom-Indizes.
 
+\subsubsection*{\texttt{Coordination} -- Liganden- und Gruppen-Atomzuordnung
+                  \emph{(seit v1.0.3)}}
+\label{app:wb-main-coordination}
+
+Diagnose-Sheet, das die PDB-zu-Gaussian-Atomzuordnungen offenlegt, die
+alle nachfolgenden Analysen verwenden. Drei Bl\"ocke, durch
+Leerzeilen getrennt:
+\begin{itemize}\setlength{\itemsep}{0pt}
+  \item \textbf{Liganden}: eine Zeile pro Fe-koordinierendem Liganden
+        (\texttt{LigandInfo} in \texttt{geometry.py}). Spalten:
+        \texttt{label} (z.\,B.\ ``Cys 207''), \texttt{element}
+        (S/N/O), \texttt{fe\_center} (1-basierter Gaussian-Center des
+        gebundenen Fe), \texttt{lig\_center} (Gaussian-Center des
+        Donor-Atoms), \texttt{bond\_len\_A},
+        \texttt{his\_protonated} (Boolean), \texttt{h\_center}
+        (Gaussian-Center des Imidazol-NH-H, falls vorhanden),
+        \texttt{his\_hn\_center} (das Donor-N, das dieses H tr\"agt,
+        NE2 oder ND1).
+  \item \textbf{Gruppen (\texttt{group\_map})}: eine Zeile pro
+        Atomgruppe, die in den \texttt{Groups\_OOP/INP/Winkel/Tors}-
+        Bl\"attern verwendet wird. Spalten: \texttt{group}
+        (Bezeichnung), \texttt{centers} (kommagetrennte Liste
+        1-basierter Gaussian-Centers).
+  \item \textbf{Cluster-Atome}: ein 4-Zeilen-Block mit Fe$_1$,
+        Fe$_2$, S$_1$, S$_2$, ihren Gaussian-Centers und der
+        Gleichgewichts-$(x, y, z)$ in $\angstrom$.
+\end{itemize}
+
+Dieses Sheet ist die erste Anlaufstelle, wenn eine Excel-Zeile
+unerwartet leer aussieht: eine leere \texttt{centers}-Liste oder ein
+fehlendes \texttt{h\_center} erkl\"art eine nachgelagerte
+Null-Zeile in den \texttt{Groups\_*}-, \texttt{Fe\_*\_*}- oder
+\texttt{His\_HN}-Bl\"attern (\S\ref{sec:migration-v104}).
+
 \subsubsection*{\texttt{SCSD} -- Rigorose D$_{2h}$-Symmetriezerlegung}
 
 Pro Mode 8 Spalten f\"ur die Anteile auf die D$_{2h}$-Irreps:
@@ -5289,29 +5920,87 @@ Volltext-Beschreibung des Laufs in einem Sheet.
             (\texttt{*\_analysis\_Embeddings.xlsx})}
 \label{app:wb-embeddings}
 
-Enth\"alt 4 Sheets mit den UMAP-Projektionen und HDBSCAN-Clusterungen.
+Enth\"alt die UMAP-Projektionen und HDBSCAN-Clusterungen. Das
+Workbook beherbergt \emph{drei} parallele Einbettungen derselben
+Mode-Menge, jede in ihrem eigenen Paar von
+\texttt{*\_clusters}- / \texttt{*\_profile}-Sheets, plus die
+pro-Mode-Roh-C$_\alpha$-Amplituden-Matrix als Eingabe f\"ur das
+Ca-UMAP.
 
 \subsubsection*{\texttt{Projektionen}}
 
-Eine Zeile pro Mode, Spalten: \texttt{Modus \#}, \texttt{Frequenz},
-\texttt{UMAP\_x}, \texttt{UMAP\_y}. Direkt plotbar als 2D-Embedding.
+Globale UMAP. Eine Zeile pro Mode, Spalten: \texttt{Modus \#},
+\texttt{Frequenz}, \texttt{UMAP\_x}, \texttt{UMAP\_y}. Berechnet auf
+der vollen Feature-Matrix aus
+\texttt{embedding.build\_feature\_matrix} (Marcus-Hush-Reorg-Features
++ Bindungs-Modulations-Features + Kernel-Scores). Direkt plotbar
+als 2D-Embedding.
 
 \subsubsection*{\texttt{Ca\_Amplituden}}
 
-Pro Mode, pro Liganden-Gruppe: Amplitudenstatistik der
-C$_\alpha$-Bewegung. Verwendet f\"ur die Embedding-Feature-Matrix.
+Pro Mode und pro C$_\alpha$-Residuum: die thermisch skalierte
+$\lVert\evec\rVert$-Amplitude des R\"uckgrat-$\alpha$-Kohlenstoffs
+des Residuums. Verwendet als Feature-Matrix f\"ur das Ca-UMAP
+(siehe unten). Format: Zeilen = Modes, Spalten = Residuennummern.
 
-\subsubsection*{\texttt{UMAP\_Cluster}}
+\subsubsection*{\texttt{Cluster} / \texttt{Cluster\_Profil}}
+\label{app:wb-embed-cluster}
 
-Eine Zeile pro Mode mit ihrer HDBSCAN-Cluster-ID
-(\texttt{cluster\_label} -- $-1$ = Rauschen, $0, 1, \ldots$ =
-Cluster-Index).
+Globale UMAP-Cluster-Zuordnungen. \texttt{Cluster} hat eine Zeile pro
+Mode mit ihrer HDBSCAN-Cluster-ID (\texttt{cluster\_label}: $-1$ =
+Rauschen; $0, 1, \ldots$ = Cluster-Index), Distanz zum
+Cluster-Zentrum, und allen Feature-Werten.
+\texttt{Cluster\_Profil} hat eine Zeile pro HDBSCAN-Cluster mit dem
+mittleren Feature-Vektor, Fisher-F-Statistik pro Feature, und einer
+geordneten Liste repr\"asentativer Modes (n\"achster zum Zentrum).
 
-\subsubsection*{\texttt{UMAP\_Cluster\_Profil}}
+\subsubsection*{\texttt{SS\_UMAP\_clusters} / \texttt{SS\_UMAP\_profile}
+                  \emph{(seit v1.0.3)}}
+\label{app:wb-embed-ssumap}
 
-Pro HDBSCAN-Cluster eine Zeile mit dem mittleren Feature-Vektor
-des Clusters. Erlaubt die Antwort: \emph{Was charakterisiert
-diesen Cluster im Feature-Raum?}
+Sekund\"arstruktur-UMAP, beschr\"ankt auf Modes, die mindestens einen
+nicht-null Eintrag in der pro-SS-Element-Feature-Zeile haben
+(\texttt{ss}-Dict nach \texttt{analyze\_all\_ss} nicht leer).
+N\"utzlich zur Identifikation kollektiver
+Protein-R\"uckgrat-Modes, die mehrere Sekund\"arstrukturen
+gleichzeitig anregen. Das \texttt{*\_clusters}-Sheet listet Modes mit
+ihren SS-UMAP-Koordinaten und HDBSCAN-Cluster-ID; das
+\texttt{*\_profile}-Sheet gibt das Z-Score-Profil der
+diskriminierenden Top-30-SS-Elemente pro Cluster aus.
+
+\subsubsection*{\texttt{Ca\_UMAP\_clusters} / \texttt{Ca\_UMAP\_profile}
+                  \emph{(seit v1.0.3)}}
+\label{app:wb-embed-caumap}
+
+C$_\alpha$-Amplituden-UMAP. Jede Mode wird als Punkt in einem
+$N_{C_\alpha}$-dimensionalen Raum dargestellt, eine Dimension pro
+R\"uckgrat-$\alpha$-Kohlenstoff (die Spalten von
+\texttt{Ca\_Amplituden}). Features werden vor UMAP pro Residuum
+z-skaliert, sodass kein einzelnes hochamplitudisches Residuum die
+Embedding-Distanz dominiert.
+
+Konzeptionell beantworten die drei UMAPs komplement\"are Fragen:
+\begin{itemize}\setlength{\itemsep}{0pt}
+  \item \emph{Globales UMAP} (\texttt{Projektionen}): Welche Modes
+        koppeln an dieselben Reorg-Kan\"ale (Fe-X, NH, HA)?
+        N\"utzlich zur Identifikation ET-aktiver bzw.\
+        PCET-aktiver Modes.
+  \item \emph{SS-UMAP} (\texttt{SS\_UMAP\_*}): Welche Modes haben
+        denselben Sekund\"arstruktur-Fu\ss abdruck? N\"utzlich zur
+        Identifikation dom\"anenkollektiver Modes.
+  \item \emph{Ca-UMAP} (\texttt{Ca\_UMAP\_*}): Welche Modes haben
+        \"ahnliche r\"aumliche Verteilungen der R\"uckgrat-Bewegung?
+        N\"utzlich zur Identifikation langreichweitiger
+        allosterischer Pfade und auf bestimmte Protein-Regionen
+        lokalisierter Modes.
+\end{itemize}
+
+Begleitende PNGs (nur wenn \texttt{cfg.export\_embedding\_plots = true}):
+\texttt{\_embedding\_UMAP.png} (2 Panele),
+\texttt{\_embedding\_SS\_UMAP.png} (3 Panele: Frequenz / Mode-Typ /
+Cluster), \texttt{\_embedding\_Ca\_UMAP.png} (3 Panele), und
+\texttt{\_ca\_amplitudes\_heatmap.png} (log-skalierte
+Residuum $\times$ Frequenz Heatmap der C$_\alpha$-Amplituden).
 
 \subsection{Interpoliertes-pDOS-Workbook
             (\texttt{*\_analysis\_interp0.05.xlsx})}

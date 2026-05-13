@@ -112,6 +112,7 @@ class ExportPayload:
     cluster_data:       dict    = _field(default_factory=dict)
     ca_data:            object  = None
     ss_umap_data:       object  = None
+    ca_umap_data:       object  = None        # NEW in v1.0.3: Ca-UMAP tuple from compute_ca_umap_cluster
 
 
 def export_all(payload):
@@ -164,6 +165,7 @@ def export_all(payload):
             p.cluster_data, p.ca_data,
             cfg.outname("_analysis_Embeddings.xlsx"),
             cfg, p.runlog,
+            ca_umap_data=p.ca_umap_data,
         )
 
     try:
@@ -188,13 +190,17 @@ def export_all(payload):
     except Exception as exc:
         p.runlog.warn(f"SS-interpolation Excel failed: {exc}")
 
-    # Hardening v3.1: Embedding-PNGs are per default AUS. Wer sie haben
-    # will, setzt cfg.export_embedding_plots = True. Sie kosten Zeit,
-    # erzeugen unsinnige Bilder if HDBSCAN nichts findet, and werden
-    # in the meisten Workflows not gelesen.
+    # Hardening v3.1: Embedding-PNGs are off by default. Set
+    # cfg.export_embedding_plots = True to enable them. They cost time
+    # and produce questionable images when HDBSCAN finds nothing.
+    # v1.0.3: now also renders SS-UMAP, Ca-UMAP and Ca-amplitude heatmap
+    # PNGs if the corresponding data has been computed.
     if getattr(cfg, "export_embedding_plots", False):
         export_embedding_plots(p.embedding_coords, p.results,
-                                cfg.outname, p.runlog)
+                                cfg.outname, p.runlog,
+                                ss_umap_data=p.ss_umap_data,
+                                ca_umap_data=p.ca_umap_data,
+                                ca_data=p.ca_data)
 
 
 _brd = None
@@ -406,9 +412,136 @@ def export_main_excel(
             _ws_lambda_kumulativ_v37(wb, results[0]["_v37_aggregates"])
     if b_factors is not None and atoms is not None:
         _ws_b_faktoren(wb, atoms, b_factors, cfg)
+    # NEW in v1.0.3: Coordination diagnostic sheet — lists each ligand
+    # group and the Gaussian-atom indices assigned to it. Makes it
+    # trivial to verify that e.g. HOH oxygens are not leaking into a
+    # ligand's atom set (which was the v1.0.2 follow-up bug).
+    _ws_coordination(wb, coord_info, atoms, runlog)
     _ws_info(wb, results, cfg, coord_info, dist_ref, logname, cluster_info)
     _save(wb, outfile, runlog)
 
+
+
+def _ws_coordination(wb, coord_info, atoms, runlog):
+    """Sheet 'Coordination': diagnostic listing of which Gaussian atoms
+    each ligand group covers.
+
+    For every ligand group in ``coord_info.group_map`` (e.g. "His 255",
+    "Cys 207"), this sheet lists every Gaussian-atom index assigned to
+    that group together with the atom name, element and coordinates.
+    Makes it trivial to audit:
+
+    - "Does His 255 really have 10 heavy atoms and nothing else?"
+    - "Did a crystal water (HOH) with overlapping residue number sneak
+      into a ligand group?" (The v1.0.2 follow-up bug.)
+    - "Did the index-mismatch fix correctly assign all heavy atoms of
+      each ligand?" (The v1.0.2 root-cause bug.)
+
+    Without this sheet, the only place this information was recorded
+    was the ``[i] Group '...': N atoms assigned`` lines in REPORT.txt,
+    which only gave the count, not the identity. New in v1.0.3.
+
+    Parameters
+    ----------
+    wb : Workbook
+        Target workbook.
+    coord_info : CoordInfo
+        Coordination info; uses ``.ligands``, ``.group_map`` and the
+        ligand residue type / number metadata.
+    atoms : list or None
+        Gaussian atom list (index -> dict with x, y, z, element, name).
+        Indices match Gaussian center IDs in ``group_map``.
+    runlog : RunLog
+        For warning messages.
+    """
+    try:
+        ws = wb.create_sheet("Coordination")
+        C_HEAD = "5D4037"
+        ws.row_dimensions[1].height = 24
+
+        # Header line
+        hdrs = [
+            ("Ligand",   16),
+            ("Residue",  12),
+            ("Res#",     8),
+            ("Coord. atom (donor)", 18),
+            ("Fe-X (A)",  10),
+            ("# heavy atoms", 14),
+            ("Gaussian indices", 60),
+        ]
+        for ci, (t, w) in enumerate(hdrs, 1):
+            _hc(ws, 1, ci, t, w, C_HEAD)
+
+        # Top: per-ligand summary line
+        ri = 2
+        for lig in (coord_info.ligands or []):
+            label   = lig.res_label
+            rname   = lig.res_name
+            rnum    = lig.res_num
+            donor   = f"{lig.lig_element} ({lig.lig_aname})"
+            bond_l  = getattr(lig, "bond_len", 0.0)
+            centers = coord_info.group_map.get(label, [])
+            n_heavy = len(centers)
+            idx_str = ", ".join(str(c) for c in sorted(centers))
+            _dc(ws, ri, 1, label)
+            _dc(ws, ri, 2, rname)
+            _dc(ws, ri, 3, rnum)
+            _dc(ws, ri, 4, donor)
+            _dc(ws, ri, 5, round(float(bond_l), 4) if bond_l else None)
+            _dc(ws, ri, 6, n_heavy)
+            _dc(ws, ri, 7, idx_str)
+            ri += 1
+
+        # Separator
+        ri += 1
+        ws.cell(ri, 1, "Per-atom detail").font = Font(
+            name="Arial", bold=True, size=10, color="5D4037")
+        ri += 1
+
+        # Detail header
+        det_hdrs = [
+            ("Ligand", 16), ("Gaussian #", 12), ("Atom name", 12),
+            ("Element", 10), ("x (A)", 10), ("y (A)", 10), ("z (A)", 10),
+        ]
+        for ci, (t, w) in enumerate(det_hdrs, 1):
+            _hc(ws, ri, ci, t, w, C_HEAD)
+        ws.row_dimensions[ri].height = 22
+        ri += 1
+
+        # Per-atom rows
+        n_atoms = len(atoms) if atoms is not None else 0
+        for lig in (coord_info.ligands or []):
+            label   = lig.res_label
+            centers = coord_info.group_map.get(label, [])
+            for c in sorted(centers):
+                _dc(ws, ri, 1, label)
+                _dc(ws, ri, 2, c)
+                if atoms is not None and 0 <= c - 1 < n_atoms:
+                    a = atoms[c - 1]   # Gaussian centers are 1-indexed
+                    # 'atoms' entries usually look like dicts with keys
+                    # 'element','x','y','z' (depending on parse). Use safe getters.
+                    if isinstance(a, dict):
+                        elem  = a.get("element", "?")
+                        aname = a.get("name", a.get("aname", "?"))
+                        x = a.get("x", 0.0); y = a.get("y", 0.0); z = a.get("z", 0.0)
+                    else:
+                        # Tuple/list fallback (element, x, y, z) or similar
+                        elem  = "?"; aname = "?"
+                        x = y = z = 0.0
+                    _dc(ws, ri, 3, aname)
+                    _dc(ws, ri, 4, elem)
+                    _dc(ws, ri, 5, round(float(x), 4))
+                    _dc(ws, ri, 6, round(float(y), 4))
+                    _dc(ws, ri, 7, round(float(z), 4))
+                else:
+                    _dc(ws, ri, 3, "(index out of range)")
+                ri += 1
+
+        ws.freeze_panes = "A2"
+
+    except Exception as e:
+        if runlog is not None:
+            runlog.warn(f"Coordination sheet: {e}")
 
 
 def _ws_b_faktoren(wb, atoms, b_factors, cfg):
@@ -519,6 +652,7 @@ def export_embedding_excel(
         outfile:          str,
         cfg:              Config,
         runlog:           RunLog,
+        ca_umap_data:     Optional[Tuple] = None,
 ):
     """Writes Embeddings and Cluster in ``_analysis_Embeddings.xlsx``.
 
@@ -558,6 +692,13 @@ def export_embedding_excel(
         _ws_cluster(wb, results, cluster_data, embedding_coords,
                     embed_feat_matrix, embed_feat_names)
         _ws_cluster_profil(wb, results, cluster_data, embed_feat_names)
+    # NEW in v1.0.3: Ca-UMAP cluster sheets, written into the same
+    # _analysis_Embeddings.xlsx alongside the global UMAP and Ca_amplitudes.
+    # Placing it here (instead of in _analysis_SS.xlsx alongside SS_UMAP)
+    # keeps all Ca-related data together: Ca_amplitudes (raw) and
+    # Ca_UMAP_clusters / Ca_UMAP_profile (UMAP-derived) in one workbook.
+    if ca_umap_data is not None and ca_umap_data[0] is not None:
+        _ws_ca_umap(wb, results, ca_umap_data, runlog)
     _save(wb, outfile, runlog)
 
 
@@ -634,7 +775,20 @@ def export_interpolated_excel(
 
         bmode = getattr(cfg, "interp_boundary_mode", "context")
         # Warnung if context-Modus without Kontextdaten (Hardening #8)
-        if bmode == "context" and not (_ctx_l or _ctx_r):
+        # Bugfix v1.0.4 (post-release Apd1 audit): only emit the warning
+        # if the user actually requested a frequency window. If no window
+        # is set (freq_min and freq_max both None and no freq_windows),
+        # the interpolation naturally covers the full DFT spectrum and
+        # no context modes are needed. Emitting the warning anyway was
+        # misleading.
+        _user_set_window = (
+            cfg.freq_min is not None
+            or cfg.freq_max is not None
+            or getattr(cfg, "freq_windows", None) is not None
+        )
+        if (bmode == "context"
+                and not (_ctx_l or _ctx_r)
+                and _user_set_window):
             runlog.warn(
                 "interp_boundary_mode='context' but no context modes available "
                 "-- boundary values set to 0 (wie 'zero'). "
@@ -855,19 +1009,53 @@ def export_ss_interp_excel(
 
 
 
-def export_embedding_plots(embedding_coords, results, outname_fn, runlog):
-    """Writes Embedding-PNGs with Frequenz- and Modentyp-Faerbung.
+def export_embedding_plots(embedding_coords, results, outname_fn, runlog,
+                            ss_umap_data=None, ca_umap_data=None, ca_data=None):
+    """Writes Embedding PNGs with frequency, mode-type and cluster coloring.
+
+    Produces (depending on what data is available):
+
+    - ``_embedding_UMAP.png``: global UMAP, 2-panel layout
+      (frequency + mode-type).
+    - ``_embedding_SS_UMAP.png``: SS-feature UMAP, 3-panel layout
+      (frequency + mode-type + HDBSCAN cluster). NEW in v1.0.3.
+    - ``_embedding_Ca_UMAP.png``: Ca-amplitude UMAP, 3-panel layout.
+      NEW in v1.0.3.
+    - ``_ca_amplitudes_heatmap.png``: C-alpha amplitudes as a residue ×
+      frequency heatmap (log color scale). NEW in v1.0.3.
+
+    Bug fix history: in v1.0.2 and earlier this function only rendered
+    ``embedding_coords`` (i.e. the global UMAP), even though SS-UMAP
+    coordinates and C-alpha amplitudes were already computed and
+    exported as Excel data. Users running the standard pipeline never
+    saw a graphical representation of these results unless they
+    plotted them by hand. v1.0.3 adds direct PNG rendering for all
+    three secondary embeddings, plus introduces a dedicated Ca-UMAP
+    embedding (computed on per-residue C-alpha amplitudes; see
+    ``embedding.compute_ca_umap_cluster``). All inputs are optional;
+    if absent the corresponding PNG is skipped silently.
 
     Parameters
     ----------
     embedding_coords : dict of {str: ndarray of shape (n_modes, 2)}
-        2D-Koordinaten per Methode.
+        2D coordinates per method (typically just ``{"UMAP": ...}``).
     results : list of dict
-        Modenanalyse-Ergebnisse.
+        Mode analysis results.
     outname_fn : callable
-        ``cfg.outname``; erstellt the completeen Ausgabepfad.
+        ``cfg.outname``; builds the full output path.
     runlog : RunLog
-        Fuer Warnmeldungen and filepfad-Registrierung.
+        For warning messages and output-file registration.
+    ss_umap_data : tuple, optional
+        Tuple returned by ``embedding.compute_ss_umap_cluster``:
+        ``(Z2d, full_labels, feat_names, X_norm, valid_idx, cluster_chars)``.
+    ca_umap_data : tuple, optional
+        Tuple returned by ``embedding.compute_ca_umap_cluster``:
+        ``(Z2d_full, full_labels, feat_names, X_norm, valid_idx, cluster_chars)``.
+        ``Z2d_full`` is padded to length ``n_modes`` with NaN rows for
+        modes that have no Ca data.
+    ca_data : tuple, optional
+        Tuple of ``(ca_centers, ca_res_nums, ca_matrix)`` returned by
+        ``runner._build_ca_data``. When provided, a heatmap PNG is rendered.
     """
     try:
         import matplotlib; matplotlib.use("Agg")
@@ -878,6 +1066,56 @@ def export_embedding_plots(embedding_coords, results, outname_fn, runlog):
     freqs=np.array([r["freq"] for r in results])
     _COLS={"Out-of-plane":"#E74C3C","In-plane":"#27AE60","Torsional/Mixed":"#3498DB"}
 
+    def _render_umap_three_panel(Z2d, label_arr, freqs_arr, types_arr,
+                                  title_prefix, out_suffix):
+        """Helper: renders a 3-panel UMAP figure (freq | mode-type | cluster).
+
+        Z2d shape: (n_pts, 2), label_arr same length, freqs_arr same length,
+        types_arr same length. Modes are assumed already filtered to valid.
+        """
+        fig,(ax1,ax2,ax3)=plt.subplots(1,3,figsize=(20,5))
+        sc1=ax1.scatter(Z2d[:,0],Z2d[:,1],c=freqs_arr,cmap="viridis",
+                        s=12,alpha=0.7,linewidths=0)
+        plt.colorbar(sc1,ax=ax1,label="Frequency (cm-1)")
+        ax1.set_title(f"{title_prefix} - frequency")
+        ax1.set_xlabel(f"{title_prefix} dim 1"); ax1.set_ylabel(f"{title_prefix} dim 2")
+        for mtype,col in _COLS.items():
+            mask=[t==mtype for t in types_arr]
+            if any(mask):
+                ax2.scatter(Z2d[mask,0],Z2d[mask,1],c=col,s=12,alpha=0.7,
+                            label=mtype,linewidths=0)
+        ax2.set_title(f"{title_prefix} - mode type"); ax2.legend(fontsize=7)
+        ax2.set_xlabel(f"{title_prefix} dim 1"); ax2.set_ylabel(f"{title_prefix} dim 2")
+        unique_lbls = sorted(set(label_arr))
+        try:
+            cm = plt.get_cmap("tab10")
+        except Exception:
+            cm = None
+        for li, lbl in enumerate(unique_lbls):
+            mask = label_arr == lbl
+            n_pts = int(mask.sum())
+            if lbl < 0:
+                ax3.scatter(Z2d[mask,0],Z2d[mask,1],c="#BBBBBB",s=10,
+                            alpha=0.5,linewidths=0,label=f"noise (n={n_pts})")
+            else:
+                col = cm(li % 10) if cm else None
+                ax3.scatter(Z2d[mask,0],Z2d[mask,1],color=col,s=12,
+                            alpha=0.8,linewidths=0,
+                            label=f"cluster {lbl} (n={n_pts})")
+        ax3.set_title(f"{title_prefix} - HDBSCAN cluster")
+        ax3.legend(fontsize=6, loc="best")
+        ax3.set_xlabel(f"{title_prefix} dim 1"); ax3.set_ylabel(f"{title_prefix} dim 2")
+        plt.tight_layout()
+        path=outname_fn(out_suffix)
+        fig.savefig(path,dpi=150,bbox_inches="tight")
+        plt.close(fig)
+        print(f"    -> {os.path.basename(path)}")
+        runlog.add_output(path)
+
+    # ------------------------------------------------------------------
+    # 1) Global UMAP PNGs (one per method in embedding_coords)
+    #    Kept at 2-panel layout (no HDBSCAN labels are passed in here).
+    # ------------------------------------------------------------------
     for method,Z in embedding_coords.items():
         fig,(ax1,ax2)=plt.subplots(1,2,figsize=(14,5))
         sc1=ax1.scatter(Z[:,0],Z[:,1],c=freqs,cmap="viridis",s=12,alpha=0.7,linewidths=0)
@@ -896,6 +1134,100 @@ def export_embedding_plots(embedding_coords, results, outname_fn, runlog):
         plt.close(fig)
         print(f"    -> {os.path.basename(path)}")
         runlog.add_output(path)
+
+    # ------------------------------------------------------------------
+    # 2) SS-UMAP 3-panel PNG (NEW in v1.0.3)
+    # ------------------------------------------------------------------
+    if ss_umap_data is not None:
+        try:
+            ss_Z2d, ss_full_labels = ss_umap_data[0], ss_umap_data[1]
+            ss_valid_idx = ss_umap_data[4] if len(ss_umap_data) > 4 else None
+        except (TypeError, IndexError):
+            ss_Z2d = ss_full_labels = ss_valid_idx = None
+
+        if ss_Z2d is not None and ss_valid_idx is not None and len(ss_Z2d) > 0:
+            freqs_ss = np.array([results[i]["freq"] for i in ss_valid_idx])
+            types_ss = [results[i]["mode_type"] for i in ss_valid_idx]
+            labels_ss = np.array([ss_full_labels[i] for i in ss_valid_idx])
+            _render_umap_three_panel(
+                np.asarray(ss_Z2d), labels_ss, freqs_ss, types_ss,
+                title_prefix="SS-UMAP",
+                out_suffix="_embedding_SS_UMAP.png")
+
+    # ------------------------------------------------------------------
+    # 3) Ca-UMAP 3-panel PNG (NEW in v1.0.3)
+    # ------------------------------------------------------------------
+    if ca_umap_data is not None:
+        try:
+            ca_Z2d_full = ca_umap_data[0]
+            ca_full_labels = ca_umap_data[1]
+            ca_valid_idx = ca_umap_data[4] if len(ca_umap_data) > 4 else None
+        except (TypeError, IndexError):
+            ca_Z2d_full = ca_full_labels = ca_valid_idx = None
+
+        if ca_Z2d_full is not None and ca_valid_idx is not None and len(ca_valid_idx) > 0:
+            ca_Z2d_full = np.asarray(ca_Z2d_full)
+            Z2d_valid = ca_Z2d_full[ca_valid_idx, :]
+            freqs_ca = np.array([results[i]["freq"] for i in ca_valid_idx])
+            types_ca = [results[i]["mode_type"] for i in ca_valid_idx]
+            labels_ca = np.array([ca_full_labels[i] for i in ca_valid_idx])
+            _render_umap_three_panel(
+                Z2d_valid, labels_ca, freqs_ca, types_ca,
+                title_prefix="Ca-UMAP",
+                out_suffix="_embedding_Ca_UMAP.png")
+
+    # ------------------------------------------------------------------
+    # 4) C-alpha amplitude heatmap PNG (NEW in v1.0.3)
+    # ------------------------------------------------------------------
+    if ca_data is not None:
+        try:
+            ca_centers, ca_res_nums, ca_matrix = ca_data[0], ca_data[1], ca_data[2]
+        except (TypeError, IndexError):
+            ca_centers = ca_res_nums = ca_matrix = None
+
+        if ca_matrix is not None and len(ca_matrix) > 0:
+            ca_matrix = np.asarray(ca_matrix, dtype=float)
+            n_modes_local = len(freqs)
+            n_calpha_local = len(ca_res_nums)
+            # _build_ca_data returns shape (n_calpha, n_modes); accept the
+            # transposed case as well.
+            if ca_matrix.shape == (n_modes_local, n_calpha_local):
+                heat = ca_matrix.T
+            elif ca_matrix.shape == (n_calpha_local, n_modes_local):
+                heat = ca_matrix
+            else:
+                runlog.warn(
+                    f"Ca-heatmap: shape mismatch "
+                    f"(ca_matrix={ca_matrix.shape}, "
+                    f"n_freqs={n_modes_local}, n_calpha={n_calpha_local}); skipped.")
+                return
+
+            with np.errstate(invalid="ignore", divide="ignore"):
+                heat_disp = np.log10(np.maximum(heat, 1e-6))
+
+            fig, ax = plt.subplots(1, 1, figsize=(14, 6))
+            im = ax.imshow(heat_disp, aspect="auto", origin="lower",
+                            cmap="magma",
+                            extent=[freqs.min(), freqs.max(), 0, n_calpha_local],
+                            interpolation="nearest")
+            cbar = plt.colorbar(im, ax=ax)
+            cbar.set_label("log10(C-alpha amplitude / A)")
+            ax.set_xlabel("Frequency (cm-1)")
+            ax.set_ylabel("C-alpha residue index (sequential)")
+            ax.set_title("C-alpha amplitudes across frequency spectrum")
+
+            n_ticks = min(15, n_calpha_local)
+            tick_idx = np.linspace(0, n_calpha_local-1, n_ticks).astype(int)
+            ax.set_yticks(tick_idx)
+            ax.set_yticklabels([str(ca_res_nums[i]) for i in tick_idx],
+                                fontsize=8)
+
+            plt.tight_layout()
+            path=outname_fn("_ca_amplitudes_heatmap.png")
+            fig.savefig(path,dpi=150,bbox_inches="tight")
+            plt.close(fig)
+            print(f"    -> {os.path.basename(path)}")
+            runlog.add_output(path)
 
 
 # ===========================================================================
@@ -1228,6 +1560,38 @@ def _ws_fe_bindung(wb, results, coord_info, element_filter, E, runlog=None,
 
     ws.freeze_panes = "B2"
 
+    # v1.0.4: all-zero-row detector, identical pattern to _ws_gruppen.
+    # If for some ligand all of stretch/bend/bend_inp/bend_oop are 0
+    # across every mode, the most likely cause is a c2l lookup failure
+    # in analyze_fe_ligand that triggered the silent _zero_lig() fallback
+    # (the v1.0.4 audit revealed this bug class). Emit a UserWarning so
+    # the user notices the dead row immediately. The UserWarning from
+    # core.analyze_fe_ligand will fire first; this is the downstream
+    # double-check at the export layer.
+    import warnings as _w_fe
+    all_zero_ligs: list = []
+    for lbl in labels:
+        is_zero = True
+        for r in results:
+            lig = r.get("fe_lig", {}).get(lbl, {})
+            for vk in ("stretch", "bend", "bend_inp", "bend_oop"):
+                if lig.get(vk, 0.) != 0.0:
+                    is_zero = False
+                    break
+            if not is_zero:
+                break
+        if is_zero:
+            all_zero_ligs.append(lbl)
+    if all_zero_ligs:
+        _w_fe.warn(
+            f"Sheet '{sheet_name}': ligands {all_zero_ligs} are 100% "
+            f"zero across all {len(results)} modes (stretch/bend "
+            f"identically zero). This usually means analyze_fe_ligand "
+            f"hit a c2l lookup failure and returned _zero_lig() "
+            f"silently. Check for related warnings from "
+            f"analyze_fe_ligand earlier in the run.",
+            UserWarning, stacklevel=2)
+
     # v3.5: Vollstaendiges Sheet (additionally) for analysis_full = True
     if cfg is not None and getattr(cfg, "analysis_full", False):
         _ws_fe_bindung_voll(wb, results, coord_info, element_filter, cfg)
@@ -1309,6 +1673,36 @@ def _ws_his_hn(wb, results, his_ligs, E):
                 _sc(ws,row,ji,r.get("his_hn",{}).get(lb,{}).get("s_hn_stretch",0.))
             row+=1
     ws.freeze_panes="B2"
+
+    # v1.0.4: all-zero-row detector for His_HN. Identical pattern to
+    # _ws_fe_bindung. For each His ligand we check whether hn_stretch is
+    # zero across ALL modes. Caveat: a deprotonated His will yield an
+    # empty his_hn dict entry (the get() yields 0.), which is LEGITIMATE
+    # silence. We therefore only warn when the ligand IS protonated:
+    # for that we look at lig.his_protonated.
+    import warnings as _w_hn
+    all_zero_hn: list = []
+    for lig in his_ligs:
+        if not getattr(lig, "his_protonated", False):
+            continue  # deprot is legitimate silence -- skip warning
+        lb = lig.res_label
+        is_zero = True
+        for r in results:
+            v = r.get("his_hn", {}).get(lb, {}).get("hn_stretch", 0.)
+            if v != 0.0:
+                is_zero = False
+                break
+        if is_zero:
+            all_zero_hn.append(lb)
+    if all_zero_hn:
+        _w_hn.warn(
+            f"Sheet 'His_HN': protonated His ligands {all_zero_hn} "
+            f"have hn_stretch = 0 across all {len(results)} modes. "
+            f"This usually means analyze_his_hn skipped the ligand "
+            f"silently (c2l lookup failure for N or H center). "
+            f"Check for related warnings from analyze_his_hn earlier "
+            f"in the run.",
+            UserWarning, stacklevel=2)
 
 
 def _ws_kern_scores(wb, results, E):
@@ -1738,6 +2132,129 @@ def _ws_ss_umap(wb, results, ss_umap_data, runlog):
 
     except Exception as e:
         runlog.warn(f"SS-UMAP-Sheet: {e}")
+
+
+def _ws_ca_umap(wb, results, ca_umap_data, runlog):
+    """Sheets 'Ca_UMAP_clusters' and 'Ca_UMAP_profile': UMAP coords + Z-score profile.
+
+    Mirrors ``_ws_ss_umap`` but consumes the output of
+    ``compute_ca_umap_cluster`` and uses a blue theme (vs green for SS-UMAP)
+    to keep the two embeddings visually distinct.
+
+    New in v1.0.3.
+    """
+    try:
+        Z2d, full_labels, feat_names, X_norm, valid_idx, cluster_chars = ca_umap_data
+        if Z2d is None: return
+        vi_set = set(valid_idx)
+        fills = ["BBDEFB","90CAF9","64B5F6","42A5F5","2196F3",
+                 "B3E5FC","E1F5FE","81D4FA","4FC3F7","29B6F6"]
+
+        # ── Sheet 1: coordinates ─────────────────────────────────────────
+        ws = wb.create_sheet("Ca_UMAP_clusters")
+        for ci, (t, w) in enumerate([("Frequency", 12), ("Type", 14),
+                                      ("Ca-Cluster", 13),
+                                      ("UMAP Dim1", 12), ("UMAP Dim2", 12)], 1):
+            _hc(ws, 1, ci, t, w, "0D47A1")
+        for ri, r in enumerate(results, 2):
+            gi = ri - 2
+            if gi in vi_set:
+                k = int(full_labels[gi])
+                fill = fills[k % len(fills)] if k >= 0 else "EEEEEE"
+                z1 = Z2d[gi, 0]; z2 = Z2d[gi, 1]
+                # Z2d_full from compute_ca_umap_cluster can have NaN rows for
+                # modes outside valid_idx; for modes inside valid_idx values
+                # are finite.
+                _dc(ws, ri, 1, r["freq"], fill)
+                _dc(ws, ri, 2, r["mode_type"], fill)
+                _dc(ws, ri, 3, k if k >= 0 else "noise", fill)
+                _dc(ws, ri, 4, round(float(z1), 6) if np.isfinite(z1) else None, fill)
+                _dc(ws, ri, 5, round(float(z2), 6) if np.isfinite(z2) else None, fill)
+            else:
+                _dc(ws, ri, 1, r["freq"])
+                _dc(ws, ri, 2, r["mode_type"])
+
+        # ── Sheet 2: Z-score profile ─────────────────────────────────────
+        if not cluster_chars: return
+        ws2 = wb.create_sheet("Ca_UMAP_profile")
+        cluster_ids = sorted(k for k in cluster_chars.keys()
+                             if isinstance(k, (int, np.integer)) and k >= 0)
+        n_cl = len(cluster_ids)
+
+        # Title
+        ws2.cell(1, 1, f"Cluster analysis: Ca_UMAP  ({n_cl} clusters)")
+        ws2.cell(1, 1).font = Font(name="Arial", bold=True, size=10,
+                                    color="FFFFFF")
+        ws2.cell(1, 1).fill = PatternFill("solid", fgColor="0D47A1")
+        ws2.merge_cells(start_row=1, start_column=1,
+                         end_row=1, end_column=2 + n_cl * 2)
+        ws2.row_dimensions[1].height = 22
+
+        # Z-score section
+        ws2.cell(3, 1, "A) Z-score profile (C-alpha amplitude features)")
+        ws2.cell(3, 1).font = Font(name="Arial", bold=True, size=9,
+                                    color="0D47A1")
+        ri = 4
+        _hc(ws2, ri, 1, "Ca residue", 18, "1565C0")
+        _hc(ws2, ri, 2, "Fisher-F",   12, "1565C0")
+        for ci, k in enumerate(cluster_ids):
+            cc = cluster_chars[k]
+            n_k = sum(1 for gl in full_labels if gl == k)
+            _hc(ws2, ri, 3 + ci * 2,     f"C{k}(n={n_k})", 10, "1565C0")
+            _hc(ws2, ri, 3 + ci * 2 + 1, f"C{k} Z",        9, "1976D2")
+        ws2.row_dimensions[ri].height = 24
+        ri += 1
+
+        # Features ordered by Fisher-F descending; only show top 30 Ca residues
+        # to keep the profile sheet compact (the full data lives in Ca_amplitudes).
+        ref_k    = cluster_ids[0]
+        fisher_f = np.array(cluster_chars.get("_fisher", []))
+        n_feats  = len(fisher_f)
+        order    = np.argsort(fisher_f)[::-1] if n_feats > 0 else []
+        top_show = 30
+        for fi in order[:top_show]:
+            if fi >= len(feat_names): continue
+            fname = feat_names[fi]
+            ws2.cell(ri, 1, fname).font = Font(name="Arial", size=8)
+            ff = float(fisher_f[fi]) if n_feats > 0 else 0.
+            ws2.cell(ri, 2, round(ff, 2)).font = Font(name="Arial", size=8)
+            ws2.cell(ri, 2).number_format = "0.0"
+            for ci, k in enumerate(cluster_ids):
+                cc = cluster_chars.get(k, {})
+                mean_v = float(cc["means"][fi])    if "means"    in cc and n_feats > 0 else 0.
+                z_v    = float(cc["z_scores"][fi]) if "z_scores" in cc and n_feats > 0 else 0.
+                ws2.cell(ri, 3 + ci * 2,     round(mean_v, 4)).font = Font(name="Arial", size=8)
+                ws2.cell(ri, 3 + ci * 2 + 1, round(z_v,    3)).font = Font(name="Arial", size=8, italic=True)
+            ri += 1
+
+        # Representative modes per cluster (closest to centroid)
+        ri += 1
+        ws2.cell(ri, 1, "B) Representative modes (closest to cluster centroid)")
+        ws2.cell(ri, 1).font = Font(name="Arial", bold=True, size=9, color="0D47A1")
+        ri += 1
+        for ci, k in enumerate(cluster_ids):
+            ws2.cell(ri, 1 + ci * 4, f"C{k}").font = Font(name="Arial", bold=True, size=9)
+        ri += 1
+        for ci, k in enumerate(cluster_ids):
+            for col, h in enumerate(["Rank", "Freq.", "Type", "Mode#"], 1 + ci * 4):
+                _hc(ws2, ri, col, h, 8, "1976D2")
+        ri += 1
+        top_n = cluster_chars[ref_k].get("top_n_modes", [])
+        for rank_i in range(len(top_n)):
+            for ci, k in enumerate(cluster_ids):
+                top = cluster_chars[k].get("top_n_modes", [])
+                if rank_i < len(top):
+                    m = top[rank_i]
+                    base = 1 + ci * 4
+                    ws2.cell(ri, base,     rank_i + 1).font = Font(name="Arial", size=8)
+                    ws2.cell(ri, base + 1, round(m["freq"], 4)).font = Font(name="Arial", size=8)
+                    ws2.cell(ri, base + 2, m["mode_type"]).font = Font(name="Arial", size=8)
+                    ws2.cell(ri, base + 3, m["number"]).font = Font(name="Arial", size=8)
+            ri += 1
+        ws2.freeze_panes = "A5"
+
+    except Exception as e:
+        runlog.warn(f"Ca-UMAP sheet: {e}")
 
 
 def _ws_ca(wb, results, ca_data, runlog):
