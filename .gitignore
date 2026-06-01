@@ -115,3 +115,8 @@ local_*.toml
 *.pem
 secrets.toml
 .env.local
+
+# built distributions (published via GitHub Releases / Zenodo, not tracked here)
+dist/
+*.whl
+*.tar.gz

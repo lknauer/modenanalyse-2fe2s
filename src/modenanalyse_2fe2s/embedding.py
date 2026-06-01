@@ -759,4 +759,4 @@ def compute_ca_umap_cluster(results: List[Dict],
     return Z2d_full, full_labels, feat_names, X_norm, valid_idx, cluster_chars
 
 
-__version__ = "1.5"  # modenanalyse v1.5 (Ca-UMAP added)
+__version__ = "1.1.0"  # kept in sync with package version (see config.py)

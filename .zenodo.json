@@ -8,6 +8,9 @@
     }
   ],
   "version": "1.1.0",
+  "related_identifiers": [
+    {"relation": "isVersionOf", "identifier": "10.5281/zenodo.20074193", "scheme": "doi"}
+  ],
   "publication_date": "2026-06-01",
   "license": "GPL-3.0-or-later",
   "upload_type": "software",
