@@ -173,7 +173,7 @@ cluster_index = 0
 
 [scsd]
 analyze_scsd = true              # requires installed scsdpy
-analyze_ss   = true
+analyze_sse   = true
 
 [pcet]
 pcet_enabled               = true

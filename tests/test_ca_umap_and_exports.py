@@ -7,7 +7,7 @@
    Ca_UMAP_profile sheets when ca_umap_data is supplied
 3. export_main_excel — must emit a Coordination diagnostic sheet
    listing each ligand's atom assignment
-4. export_embedding_plots — must accept ss_umap_data, ca_umap_data,
+4. export_embedding_plots — must accept sse_umap_data, ca_umap_data,
    ca_data without raising on missing/None inputs
 
 Run::
@@ -317,7 +317,7 @@ def test_coordination_sheet_lists_each_ligand_with_atom_count():
 
 def test_export_embedding_plots_back_compat():
     """The new signature must remain back-compatible — calling it the
-    pre-v1.0.3 way (no ss_umap_data/ca_umap_data/ca_data) must not
+    pre-v1.0.3 way (no sse_umap_data/ca_umap_data/ca_data) must not
     raise and must not emit warnings."""
     from modenanalyse_2fe2s.export import export_embedding_plots
 

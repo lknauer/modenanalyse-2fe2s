@@ -5,6 +5,146 @@ All notable changes to `modenanalyse_2fe2s` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] — 2026-06-01
+
+Renames the secondary-structure abbreviation **SS → SSE** project-wide and
+ships the v1.0.5 secondary-structure work as a stable release.
+
+### Changed (breaking: output sheet and file names)
+
+- **`SS` → `SSE` throughout.** The abbreviation for *secondary structure
+  element* was renamed across code, configuration, output and docs. This
+  removes the clash with disulfide (S–S / cystine) — a real ambiguity in
+  sulfur-rich iron–sulfur systems — and matches the conventional term
+  *secondary structure element*. Concretely:
+  - **Excel sheets**: `SS_amplitude_mean` → `SSE_amplitude_mean`,
+    `SS_com_amplitude` → `SSE_com_amplitude`, `SS_UMAP_clusters` →
+    `SSE_UMAP_clusters`, `SS_UMAP_profile` → `SSE_UMAP_profile`, and the
+    other `SS_*` metric sheets likewise.
+  - **Output filename**: `*_analysis_SS.xlsx` → `*_analysis_SSE.xlsx`
+    (and `*_analysis_SS_interp*` → `*_analysis_SSE_interp*`).
+  - **Public API**: `analyze_ss_element` → `analyze_sse_element`,
+    `analyze_all_ss` → `analyze_all_sse`, `build_ss_center_map` →
+    `build_sse_center_map`, `build_ss_ca_center_map` →
+    `build_sse_ca_center_map`, `compute_ss_umap_cluster` →
+    `compute_sse_umap_cluster`, `detect_ss_dssp` / `detect_ss_phipsi` →
+    `detect_sse_*`, `export_ss_excel` / `export_ss_interp_excel` →
+    `export_sse_*`, and the constant `SS_UMAP_METRICS` → `SSE_UMAP_METRICS`.
+  - **Per-mode result key**: `result["ss"]` → `result["sse"]`.
+  - **Documentation** (Manual, Anleitung, Supplement, tutorials) updated to
+    match; the in-repo doc-reference tests enforce code/doc consistency.
+- **Configuration keys** `analyze_ss` → `analyze_sse` and `ss_chain` →
+  `sse_chain`. The legacy names remain accepted in TOML with a deprecation
+  warning, so existing configurations keep working unchanged.
+
+### Migration
+
+Re-run affected systems to regenerate `*_analysis_SSE.xlsx`. Downstream
+code that reads the old `SS_*` sheet names or the `*_analysis_SS.xlsx`
+filename must be updated to the `SSE_*` names. TOML configs need no change
+(legacy keys are aliased), though renaming `analyze_ss` / `ss_chain` to the
+new keys is recommended.
+
+## [1.0.5] — 2026-06-01
+
+Physics-correctness release for the secondary-structure (SS) analysis,
+triggered by a code review of the per-SS-element descriptor computation
+(`analyze_ss_element`) and the SS-UMAP clustering. One confirmed bug and
+several physical/statistical inaccuracies of the same root classes —
+silently dropped features, a mislabelled geometric quantity, unweighted
+centroids used as centres of mass, and non-propagated uncertainties —
+are fixed here, with eight new validation tests.
+
+**IMPORTANT — outputs change; re-run required.** The Excel **sheet and
+column names are unchanged** (downstream tooling keeps working), but the
+numeric contents of `SS_com_amplitude`, `SS_tilting_angle`,
+`SS_internal_amplitude`, the `SS_UMAP_*` sheets, and the cluster `kern`
+COM differ. `tilting_angle` in particular changed meaning (see below).
+Existing `_analysis_SS.xlsx` files must be regenerated.
+
+### Fixed
+
+- **SS-UMAP dropped all lateral/bending motion (silent feature bug).**
+  `embedding.compute_ss_umap_cluster` listed two features as
+  `bending_std`/`bending_mean`, which `analyze_ss_element` never
+  produces (it returns `lateral_std`/`lateral_amplitude`). Pulled via
+  `.get(metric, 0.)`, both columns were identically zero for every mode
+  and every element, so lateral/bending motion never entered the
+  embedding or the cluster Z-score / Fisher-F profiles (the 36
+  `bending_*` features had Fisher-F ≡ 0). Now uses the real keys. A new
+  regression test parses the feature list and asserts every metric is a
+  key actually produced by `analyze_ss_element`.
+
+- **`tilting_angle` was not a tilt.** It was the polar angle of the
+  centroid *translation* relative to the element axis — a property of
+  the net translation, not a rotation — which sat near a constant
+  ~57.3° (the mean angle of an isotropic vector to a fixed axis) for
+  delocalised modes and carried essentially no structural signal. It is
+  now a genuine rigid-body tilt: the rocking rotation perpendicular to
+  the helix axis, obtained from the mass-weighted least-squares
+  infinitesimal rotation `ω` (`J ω = b`), reported as a small-angle
+  amplitude in degrees.
+
+- **`com_amplitude` was not mass-weighted.** Both the per-SS-element COM
+  and the cluster-core COM (`kern`) used the unweighted atom-mean of the
+  displacement vectors. Because C/N/O/S (and Fe/S in the core) differ in
+  mass, the unweighted centroid is not the centre of mass. Both are now
+  true mass-weighted COM displacements (`Σ mᵢ uᵢ / Σ mᵢ`).
+
+- **`internal_amplitude` is now a rigid-body residual.** It was the
+  lateral part of the centroid-relative motion (translation removed
+  only). It is now the TLS-style residual after removing both
+  translation *and* the rigid rotation `ω`, i.e. a true non-rigid
+  internal-strain measure.
+
+- **Principal axis is now backbone-based.** The SVD axis was computed
+  over all heavy atoms (including side chains), which can tilt the axis
+  away from the helix direction for short elements. A new
+  `geometry.build_ss_ca_center_map` provides per-element Cα centres; the
+  axis now prefers the backbone trace and falls back to the all-atom
+  axis when fewer than two Cα are resolved (backward-compatible default).
+
+- **SS uncertainties are now honest first-order estimates.** They were
+  all set to a single `s_amp = u_rms·σ_eigvec·√n` with arbitrary ×1.4 /
+  ×1.5 factors, and a displacement-unit σ was assigned to an angle in
+  degrees. The `√n` scaling was that of a *sum*, not a mean. The SS
+  sigmas now use the standard error of a mean (`σ_eigvec/√n`), drop the
+  magic factors, and propagate the tilt uncertainty as a small angle
+  over the radius of gyration (`σ/Rg`).
+
+### Changed
+
+- **SS-UMAP feature set reduced and decorrelated (changes clustering output).**
+  The per-element clustering features were cut from nine to five. Dropped:
+  the two overall-magnitude features (`amplitude_mean`, `amplitude_max`),
+  which are collinear with the directional components and over-weighted the
+  "overall amplitude" axis under z-scoring, and the two second-moment
+  features (`lateral_std`, `stretching`), which largely duplicate their
+  first moments. Retained: the orthogonal rigid-body partition
+  (`com_amplitude`, `tilting_angle`, `internal_amplitude`) plus the
+  axial/lateral directional split. All nine descriptors are still written
+  to the per-metric SS sheets; only the clustering input changed. This
+  affects `SS_UMAP_clusters` and `SS_UMAP_profile`.
+- **Static cleanup:** removed unused imports across `config`, `core`,
+  `geometry`, `logio`, `pcet_et`, `reorganization` and `embedding` (no
+  behavioural change). The `runner` orchestrator was left untouched by
+  design; the deliberate `hdbscan` availability probe is retained.
+
+### Notes
+
+The SS-UMAP metric list was the one feature set that hard-coded its names
+locally instead of sharing the producer's constant (contrast
+`core.SCORE_KEYS`), which is how it drifted. It is now promoted to a
+shared single source of truth, `core.SS_UMAP_METRICS`, imported by
+`embedding`; a regression test additionally asserts every metric is a key
+produced by `analyze_ss_element`. Defaults are backward-compatible
+(`axis_centers=None`, `ss_axis_center_map=None` reproduce the old
+all-atom axis), so the pre-existing test suite is unaffected. The
+reorganization-energy, PCET/ET, Debye-Waller / Fe-pDOS thermodynamics
+and SCSD physics were reviewed alongside this release and are unchanged;
+the deprecated NIS-spectrum parameters (`nis_*`) remain accepted but
+unused, as before.
+
 ## [1.0.4] — 2026-05-12 (revised 2026-05-13)
 
 Audit-driven bugfix release. A defense-in-depth audit triggered by a

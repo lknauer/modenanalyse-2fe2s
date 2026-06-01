@@ -14,7 +14,7 @@
 
 [input]
 log_file   = "dimer.log"            # frequency log file (Gauss .log or ORCA .hess)
-pdb_file   = "dimer.pdb"            # optional, for ligands + SS
+pdb_file   = "dimer.pdb"            # optional, for ligands + SSE
 output_dir = "./results"             # base folder; one subfolder per cluster
 pdb_chain  = ""                      # chain filter (empty = all chains)
 

@@ -79,8 +79,8 @@ significance_threshold_high = 3.0
 # -----------------------------------------------------------------------------
 [scsd]
 analyze_scsd = true
-analyze_ss   = true
-ss_chain     = ""    # empty = pdb_chain is used
+analyze_sse   = true
+sse_chain     = ""    # empty = pdb_chain is used
 
 # -----------------------------------------------------------------------------
 #  PCET / Marcus-Hush reorganization modulations (v3.7)

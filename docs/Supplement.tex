@@ -1,6 +1,6 @@
 % =========================================================================
 % modenanalyse_2fe2s -- Supplementary Technical Documentation
-% Version 1.0.4 (May 2026)
+% Version 1.1.0 (June 2026)
 % =========================================================================
 %
 % This document is the technical supplement to the user manual.
@@ -191,7 +191,7 @@
 \author{Lukas Knauer\\
 \small AG Sch\"unemann, RPTU Kaiserslautern-Landau\\
 \small \texttt{lknauer@rptu.de}}
-\date{Software version 1.0.4 \quad\textbar\quad Document compiled \today}
+\date{Software version 1.1.0 \quad\textbar\quad Document compiled \today}
 
 \begin{document}
 
@@ -278,12 +278,12 @@ chemical and physical theme:
         $C_{\PCET}(\omega)$, $C_{\PT\text{-FeN}}(\omega)$,
         $C_{\ET\text{-FeS}}(\omega)$, and cumulative
         $\Lambda_X(\omega)$.
-  \item \emph{Secondary-structure} descriptors: per-SS-element
+  \item \emph{Secondary-structure} descriptors: per-SSE-element
         amplitudes, centre-of-mass amplitudes, axial amplitudes,
         tilting angles.
   \item \emph{Embeddings}: three parallel UMAP-HDBSCAN clusterings on
         complementary feature spaces (Marcus-Hush reorganization
-        features, SS-element fingerprint, C$_\alpha$-amplitude
+        features, SSE-element fingerprint, C$_\alpha$-amplitude
         fingerprint).
   \item \emph{Diagnostic} sheets: the \texttt{Coordination} sheet
         documents the Gaussian-to-PDB atom mapping used by all
@@ -308,7 +308,7 @@ but distinct -- the distinction is spelled out in
 \toprule
 \textbf{Property} & \textbf{Value} & \textbf{Notes} \\
 \midrule
-Package version           & 1.0.4              & SemVer; the audit trail
+Package version           & 1.1.0              & SemVer; the audit trail
                                                   is \cref{sec:audit-trail}. \\
 Python                    & $\geq$ 3.11        & Type-hint syntax used. \\
 Primary input             & Gaussian \file{.log} \texttt{Freq=hpmodes}
@@ -320,12 +320,12 @@ Alternative input         & ORCA \file{.hess}  & Independent parser
                                                 in \file{orca\_io.py}. \\
 Secondary input           & PDB                & Optional. Enables
                                                 residue labels,
-                                                SS analysis, embedding-
+                                                SSE analysis, embedding-
                                                 feature C$_\alpha$
                                                 amplitudes. \\
 Output format             & \file{.xlsx} (openpyxl) & One main
                                                 workbook plus optional
-                                                interp / SS /
+                                                interp / SSE /
                                                 embedding workbooks. \\
 Test count                & 147 unit + 4 E2E   & \cref{sec:test-suite} \\
 Manual length             & 104 pages          & \file{Manual.pdf}\\
@@ -783,7 +783,7 @@ Reorganization energies            & cm$^{-1}$
      \cref{sec:lambda-derivation}. \\
 $B$-factors                        & \AA$^2$  & \cref{sec:b-factor-derivation}. \\
 SCSD amplitudes                    & \AA{}    & \cref{sec:scsd-derivation}. \\
-SS-element amplitudes              & \AA{}    & \\
+SSE-element amplitudes              & \AA{}    & \\
 \bottomrule
 \end{longtable}
 
@@ -1041,7 +1041,7 @@ The thermally scaled eigenvector $\widetilde{\evec}_{l,i}
 \equiv \evec_{l,i} \cdot \urms(\omega_l)$ has units of \AA{} and
 \emph{is the displacement of atom $i$ in mode $l$ averaged over the
 thermal density matrix}. Every downstream geometric observable
-(bond modulation, bend, group-amplitude, SCSD amplitude, SS-element
+(bond modulation, bend, group-amplitude, SCSD amplitude, SSE-element
 amplitude, C$_\alpha$ amplitude) is computed from
 $\widetilde{\evec}$, not from the raw $\evec$. This means that:
 
@@ -1706,7 +1706,7 @@ If no valid candidate is found, the H is recorded with
 $A = $ \texttt{None}, $\Delta r_{HA} = 0$ for all modes, and a
 \fn{UserWarning} is emitted on the first such occurrence in the run.
 
-\subsection{Geometric weighting by H$\cdots$A distance}
+\subsection{Geometric weighting by H\texorpdfstring{$\cdots$}{...}A distance}
 
 \codref{reorganization.build\_channels\_from\_coord\_info}
 
@@ -4457,11 +4457,11 @@ in the residue-label resolution stage).
 
 % -------------------------------------------------------------------------
 \section{Algorithm: secondary-structure detection}
-\label{sec:algo-ss}
+\label{sec:algo-sse}
 
-\codref{geometry.detect\_ss\_dssp, geometry.detect\_ss\_phipsi}
+\codref{geometry.detect\_sse\_dssp, geometry.detect\_sse\_phipsi}
 
-Two parallel secondary-structure (SS) classifiers are implemented.
+Two parallel secondary-structure (SSE) classifiers are implemented.
 DSSP is the gold standard but requires either the executable
 installed locally or pre-computed records in the PDB file. As a
 fallback, the lightweight $\phi/\psi$ dihedral-only classifier is
@@ -4469,21 +4469,21 @@ used.
 
 \subsection{Algorithm: DSSP records from PDB}
 
-\codref{geometry.detect\_ss\_dssp}
+\codref{geometry.detect\_sse\_dssp}
 
 DSSP \cite{KabschSander1983} classifies each residue into one of
 8 categories (H, B, E, G, I, T, S, blank), based on hydrogen-bond
-patterns in the backbone. The implementation reads the SS records
+patterns in the backbone. The implementation reads the SSE records
 directly from the PDB header (most modern PDB files carry these in
 the \texttt{HELIX} and \texttt{SHEET} records):
 
 \begin{lstlisting}[style=pseudo,
   caption={DSSP-record extraction from PDB. Implementation:
-           \protect\fn{geometry.detect\_ss\_dssp}.}]
+           \protect\fn{geometry.detect\_sse\_dssp}.}]
 input:  pdb_path
-output: ss_per_residue : dict[(chain, resnum) -> ss_type]
+output: sse_per_residue : dict[(chain, resnum) -> sse_type]
 
-ss_per_residue <- {}
+sse_per_residue <- {}
 with open(pdb_path) as f:
     foreach line in f:
         if line starts with "HELIX":
@@ -4491,22 +4491,22 @@ with open(pdb_path) as f:
             resnum_a  <- parse_int(line[21:25])
             resnum_b  <- parse_int(line[33:37])
             foreach r in range(resnum_a, resnum_b + 1):
-                ss_per_residue[(chain, r)] <- "H"
+                sse_per_residue[(chain, r)] <- "H"
         if line starts with "SHEET":
             chain     <- line[21]
             resnum_a  <- parse_int(line[22:26])
             resnum_b  <- parse_int(line[33:37])
             foreach r in range(resnum_a, resnum_b + 1):
-                ss_per_residue[(chain, r)] <- "E"
+                sse_per_residue[(chain, r)] <- "E"
 
-return ss_per_residue
+return sse_per_residue
 \end{lstlisting}
 
 \subsection{Algorithm: $\phi/\psi$-only classifier}
 
-\codref{geometry.detect\_ss\_phipsi}
+\codref{geometry.detect\_sse\_phipsi}
 
-If no SS records are in the PDB and DSSP is not installed, the
+If no SSE records are in the PDB and DSSP is not installed, the
 fallback computes the $\phi$ and $\psi$ dihedral angles per residue
 and applies the Ramachandran-region cutoffs:
 \begin{itemize}
@@ -4522,11 +4522,11 @@ applied to avoid spurious single-residue classifications.
 
 \begin{lstlisting}[style=pseudo,
   caption={$\phi/\psi$ secondary-structure classifier.
-           Implementation: \protect\fn{geometry.detect\_ss\_phipsi}.}]
+           Implementation: \protect\fn{geometry.detect\_sse\_phipsi}.}]
 input:  pdb_atoms (with backbone N, CA, C identified)
-output: ss_per_residue : dict[(chain, resnum) -> ss_type]
+output: sse_per_residue : dict[(chain, resnum) -> sse_type]
 
-raw_ss <- {}
+raw_sse <- {}
 foreach residue (chain, resnum) in pdb_atoms:
     prev_C  <- atom(chain, resnum - 1, "C") or skip
     this_N  <- atom(chain, resnum, "N")
@@ -4535,11 +4535,11 @@ foreach residue (chain, resnum) in pdb_atoms:
     next_N  <- atom(chain, resnum + 1, "N") or skip
     phi <- dihedral(prev_C, this_N, this_CA, this_C)
     psi <- dihedral(this_N, this_CA, this_C, next_N)
-    raw_ss[(chain, resnum)] <- classify(phi, psi)
+    raw_sse[(chain, resnum)] <- classify(phi, psi)
 
-# Apply min-length filter: drop isolated SS-classified residues
-ss_per_residue <- min_length_filter(raw_ss, alpha_min=3, beta_min=2)
-return ss_per_residue
+# Apply min-length filter: drop isolated SSE-classified residues
+sse_per_residue <- min_length_filter(raw_sse, alpha_min=3, beta_min=2)
+return sse_per_residue
 \end{lstlisting}
 
 \paragraph{Comparison of the two classifiers.}
@@ -4547,11 +4547,11 @@ DSSP is more accurate (especially for distinguishing $\alpha$-helices
 from 3$_{10}$- and $\pi$-helices), but the $\phi/\psi$ classifier
 captures the majority of $\alpha$- and $\beta$-character correctly
 for typical $> 30$-residue chains. Both classifiers feed the same
-downstream SS-amplitude analysis; the choice is logged.
+downstream SSE-amplitude analysis; the choice is logged.
 
 \subsection{The fallback cascade}
 
-The full SS-detection pipeline tries three sources in order, stopping
+The full SSE-detection pipeline tries three sources in order, stopping
 at the first that produces a non-empty result:
 
 \begin{enumerate}
@@ -4574,12 +4574,12 @@ at the first that produces a non-empty result:
 \end{enumerate}
 
 The chosen source is recorded in the run-log as
-``\texttt{ss\_source = pdb\_records}'', ``\texttt{ss\_source =
-dssp\_executable}'', or ``\texttt{ss\_source = phipsi\_fallback}''.
+``\texttt{sse\_source = pdb\_records}'', ``\texttt{sse\_source =
+dssp\_executable}'', or ``\texttt{sse\_source = phipsi\_fallback}''.
 
 \subsection{Edge cases}
 
-\paragraph{(S1) PDB with no SS records and no DSSP.}
+\paragraph{(S1) PDB with no SSE records and no DSSP.}
 The $\phi/\psi$ classifier is used. Some residues at the chain
 termini (missing $\phi$ at residue 1, missing $\psi$ at the last
 residue) get classified as ``loop'' regardless of their actual
@@ -4610,7 +4610,7 @@ deliberately removes singletons. Real 3$_{10}$-helix turns and
 $\beta$-bulges may be lost. The filter is necessary because the
 $\phi/\psi$ classifier produces $\sim$~10--15\% spurious singletons.
 The user can adjust the filter parameters via
-\cfgkey{ss\_alpha\_min\_len} and \cfgkey{ss\_beta\_min\_len}.
+\cfgkey{sse\_alpha\_min\_len} and \cfgkey{sse\_beta\_min\_len}.
 
 \paragraph{(S6) Multiple chains.}
 The classifier processes one chain at a time. Inter-chain
@@ -4620,27 +4620,27 @@ classified residue-by-residue as if each chain were independent.
 For most NRVS analyses this is acceptable (the cluster is in one
 chain).
 
-\subsection{Connection to the SS-amplitude analysis}
+\subsection{Connection to the SSE-amplitude analysis}
 
-The output \texttt{ss\_per\_residue} dict feeds two downstream
+The output \texttt{sse\_per\_residue} dict feeds two downstream
 consumers:
 
 \begin{enumerate}
-  \item \texttt{export\_ss\_amplitude\_groups}: builds per-mode
-        SS-aggregated amplitude sheets. Residues classified
+  \item \texttt{export\_sse\_amplitude\_groups}: builds per-mode
+        SSE-aggregated amplitude sheets. Residues classified
         ``$\alpha$'' are summed into the $\alpha$-amplitude column;
         ``$\beta$'' into the $\beta$-amplitude column; ``loop'' into
         the loop column. The sum-of-three equals the total
         protein amplitude (except for unclassified residues).
-  \item \fn{geometry.build\_ss\_center\_map}: enriches the
-        per-atom residue labels with their SS class for the audit
+  \item \fn{geometry.build\_sse\_center\_map}: enriches the
+        per-atom residue labels with their SSE class for the audit
         log.
 \end{enumerate}
 
 For both, an unclassified residue (UNK) is silently dropped from
-the SS-sum but kept in the total -- the resulting ``$\alpha + \beta
+the SSE-sum but kept in the total -- the resulting ``$\alpha + \beta
 + \text{loop} < \text{total}$'' inequality in the workbook signals
-to the user that some residues lacked SS classification.
+to the user that some residues lacked SSE classification.
 
 % -------------------------------------------------------------------------
 \section{Algorithm: main mode-analysis loop (Phase 4)}
@@ -4980,7 +4980,7 @@ $\texttt{mode\_type} = \texttt{"synthetic\_zero"}$,
 $\texttt{precision} = \texttt{"synthetic"}$. The eigenvector
 matrix \fn{evg} and the SCSD coefficient list are deliberately
 \emph{omitted} (set to \texttt{None}) so that the downstream
-$B$-factor and SS-amplitude loops detect the sentinel and skip the
+$B$-factor and SSE-amplitude loops detect the sentinel and skip the
 mode -- it must not contribute to system-wide aggregates, only to
 the interpolation anchor.
 
@@ -5665,8 +5665,8 @@ appended (suffixed by group name -- e.g.\ \texttt{a\_oop\_pct\_Cys11}).
   & Per-group $\alpha_{\INP}$. \\
 \texttt{amplitude\_a\_\textit{group}} & \texttt{float}
   & Total amplitude (RMS over atoms in the group). \\
-\texttt{ss\_amplitude\_*} & \texttt{float}
-  & Per-SS-element amplitudes (only when SS analysis is enabled). \\
+\texttt{sse\_amplitude\_*} & \texttt{float}
+  & Per-SSE-element amplitudes (only when SSE analysis is enabled). \\
 \bottomrule
 \end{longtable}
 
@@ -5725,7 +5725,7 @@ table at the start of each section gives the line-range in
     via filename extension. \\
 \cfgkey{pdb\_file} & \texttt{str} & \texttt{""}
   & Path to a PDB file. Optional. Required for residue labels and
-    SS analysis. \\
+    SSE analysis. \\
 \cfgkey{output\_dir} & \texttt{str} & \texttt{""}
   & Directory for all output workbooks and the run-log. Created
     if missing. \\
@@ -5827,13 +5827,13 @@ table at the start of each section gives the line-range in
 \cfgkey{analysis\_full} & \texttt{bool} & \texttt{False}
   & Produce the full workbook with every available descriptor.
     Doubles output size; off by default. \\
-\cfgkey{analyze\_ss} & \texttt{bool} & \texttt{True}
+\cfgkey{analyze\_sse} & \texttt{bool} & \texttt{True}
   & Run secondary-structure analysis if a PDB is supplied. \\
 \cfgkey{analyze\_scsd} & \texttt{bool} & \texttt{True}
   & Run SCSD projection per mode. Setting False saves
     \mbox{$\sim$}~10\% runtime on large logs. \\
-\cfgkey{ss\_chain} & \texttt{str} & \texttt{""}
-  & Restrict SS analysis to a single chain. Empty = all chains. \\
+\cfgkey{sse\_chain} & \texttt{str} & \texttt{""}
+  & Restrict SSE analysis to a single chain. Empty = all chains. \\
 \bottomrule
 \end{longtable}
 
@@ -6195,30 +6195,65 @@ adjacent modes (in $\omega$), anchored at the boundary by the
 context modes loaded in \cref{sec:algo-context}.
 
 % -------------------------------------------------------------------------
-\section{SS workbook (\file{*\_analysis\_SS.xlsx})}
+\section{SSE workbook (\file{*\_analysis\_SSE.xlsx})}
 
-\codref{export.export\_ss\_excel}
+\codref{export.export\_sse\_excel}
 
-Produced only when SS analysis is enabled and a PDB with SS records
-(or DSSP records) is supplied. Sheets enumerate per-SS-element
+Produced only when SSE analysis is enabled and a PDB with SSE records
+(or DSSP records) is supplied. Sheets enumerate per-SSE-element
 amplitudes per mode, plus axial-tilt diagnostics.
 
 \subsection*{Sheets}
 
+One sheet per descriptor, each a per-mode $\times$ per-SSE-element matrix.
+The element's principal axis is taken from its C$_\alpha$ backbone;
+\emph{axial} and \emph{lateral} denote the components parallel and
+perpendicular to that axis. Displacements use the thermally scaled
+eigenvector $\widetilde{\evec}$; amplitudes are in \AA{}, angles in degrees.
+
 \begin{itemize}
-  \item \texttt{SS\_amplitude\_mean}: per-mode, per-SS-element mean
-        atom-displacement amplitude (\AA{}).
-  \item \texttt{SS\_amplitude\_max}: per-mode, per-SS-element maximum
-        atom-displacement amplitude.
-  \item \texttt{SS\_com\_amplitude}: per-mode, per-SS-element
-        centre-of-mass displacement.
-  \item \texttt{SS\_axial\_amplitude}: axial component of the
-        SS-element centre-of-mass displacement.
-  \item \texttt{SS\_tilt\_angle\_deg}: rotation angle (deg) of the
-        SS-element's principal axis under the mode.
-  \item \texttt{SS\_elements}: index sheet with per-element residue
-        ranges and chain assignments.
+  \item \texttt{SSE\_amplitude\_mean} / \texttt{SSE\_amplitude\_max}:
+        mean and maximum, over the element's atoms, of the per-atom
+        displacement magnitude.
+  \item \texttt{SSE\_com\_amplitude}: magnitude of the \emph{mass-weighted}
+        centre-of-mass displacement
+        $\lVert \sum_i m_i \widetilde{\evec}_i / \sum_i m_i \rVert$
+        (rigid-body translation of the element). \emph{(v1.0.5: now
+        mass-weighted; previously the unweighted atom-mean.)}
+  \item \texttt{SSE\_axial\_amplitude}: mean absolute displacement
+        component along the principal axis.
+  \item \texttt{SSE\_lateral\_amplitude}: mean displacement component
+        perpendicular to the principal axis.
+  \item \texttt{SSE\_lateral\_std}: standard deviation of the lateral
+        component across the atoms (lateral inhomogeneity).
+  \item \texttt{SSE\_stretching}: standard deviation of the axial
+        component across the atoms (axial elongation/compression).
+  \item \texttt{SSE\_tilting\_angle}: magnitude of the rigid-body rocking
+        rotation perpendicular to the axis. It is the best-fit
+        infinitesimal rotation $\bm{\omega}$ minimising
+        $\sum_i m_i \lVert \mathbf{d}_i - \bm{\omega}\times\mathbf{r}_i \rVert^2$
+        ($\mathbf{d}_i$ = displacement after removing the COM translation,
+        $\mathbf{r}_i$ = position about the mass centre), reported as
+        $\lVert\bm{\omega}_\perp\rVert$ in degrees. \emph{(v1.0.5: a genuine
+        rigid-body tilt; previously the near-constant polar angle of the
+        centroid translation.)}
+  \item \texttt{SSE\_internal\_amplitude}: mean magnitude of the residual
+        displacement after removing \emph{both} the rigid translation and
+        the rigid rotation -- a TLS-style non-rigid internal deformation
+        \emph{(new in v1.0.5)}.
+  \item \texttt{SSE\_UMAP\_Cluster} (optional): present when the
+        SSE-fingerprint UMAP--HDBSCAN clustering is computed
+        (\fn{compute\_sse\_umap\_cluster}); HDBSCAN cluster ID per mode
+        ($-1$ = noise). The clustering uses the decorrelated five-feature
+        subset \texttt{com\_amplitude}, \texttt{tilting\_angle},
+        \texttt{internal\_amplitude}, \texttt{axial\_amplitude},
+        \texttt{lateral\_amplitude}.
 \end{itemize}
+
+Each amplitude sheet carries a matching \texttt{s\_}-sigma
+(\cref{sec:sigma-propagation}): the mean-type amplitudes use the standard
+error $\sigma_e^\text{therm}/\sqrt{n}$, the tilt angle uses
+$\sigma_e^\text{therm}/R_g$ converted to degrees.
 
 % -------------------------------------------------------------------------
 \section{Embedding workbook (\file{*\_analysis\_embedding.xlsx})}
@@ -6232,8 +6267,8 @@ feature spaces:
   \item \emph{Reorg-features}: per-mode
         $(\lambda_\text{FeFe}, \lambda_\text{FeN}, \lambda_\text{FeS},
           \lambda_\text{NH}, \lambda_\text{HA})$.
-  \item \emph{SS-fingerprint}: per-mode SS-element amplitudes
-        (only when SS is enabled).
+  \item \emph{SSE-fingerprint}: per-mode SSE-element amplitudes
+        (only when SSE is enabled).
   \item \emph{C$_\alpha$-amplitude} fingerprint: per-mode mean
         $\alpha$-carbon amplitudes per residue group.
 \end{itemize}
@@ -6627,7 +6662,7 @@ unconditionally summed \texttt{r["evg"]**2}.
 Two-step guard: \fn{\_make\_synthetic\_zero\_mode} omits the
 \texttt{evg} key entirely, and the B-factor loop checks
 \texttt{r.get("evg") is not None} before summing. Same guard
-applied to the SS-amplitude and group-amplitude loops.
+applied to the SSE-amplitude and group-amplitude loops.
 
 \paragraph{Regression test.}
 \fn{test\_v104\_audit\_fixes.py::test\_synthetic\_zero\_skipped\_by\_b\_factor}.
@@ -7197,11 +7232,11 @@ the audit-trail section.
    \emph{together}.
  & FUND 6 -- consistency of value-and-sigma propagation. \\
 \midrule
-\texttt{test\_ss\_element\_sigma\_responds\_to\_sigma\_eigvec}
- & Construct a small SS-element with 3 atoms, run the export-
+\texttt{test\_sse\_element\_sigma\_responds\_to\_sigma\_eigvec}
+ & Construct a small SSE-element with 3 atoms, run the export-
    amplitude function with \cfgkey{sigma\_eigvec} = $10^{-4}$ and
    then $5\!\times\!10^{-4}$. Assert sigma ratio = 5.
- & FUND 7 -- SS-element sigmas should be user-configurable. \\
+ & FUND 7 -- SSE-element sigmas should be user-configurable. \\
 \midrule
 \texttt{test\_scsd\_sigmas\_use\_cfg}
  & Set \cfgkey{sigma\_eigvec} = 1e-3, \cfgkey{sigma\_coord} = 2e-3;
@@ -8419,13 +8454,13 @@ W.~Kabsch, C.~Sander,
 \emph{Dictionary of protein secondary structure: pattern
 recognition of hydrogen-bonded and geometrical features},
 \textbf{Biopolymers} \textbf{22}, 2577--2637 (1983).
-The DSSP algorithm referenced in \cref{sec:algo-ss}.
+The DSSP algorithm referenced in \cref{sec:algo-sse}.
 
 \bibitem{Ramachandran1963}
 G.~N. Ramachandran, C.~Ramakrishnan, V.~Sasisekharan,
 \emph{Stereochemistry of polypeptide chain configurations},
 \textbf{J. Mol. Biol.} \textbf{7}, 95--99 (1963).
-The $\phi/\psi$ classification used in the SS-detection fallback.
+The $\phi/\psi$ classification used in the SSE-detection fallback.
 
 \bibitem{GoldenSection}
 G.~H. Golub, C.~F. Van~Loan,
@@ -8579,7 +8614,7 @@ $\alpha \in \{x, y, z\}$ & Cartesian-component index. \\
 $s$ & Sub-channel index within a parent channel $X$. \\
 $\OOP, \INP$ & Out-of-plane / in-plane component, relative to
                 $\nhat$. \\
-$G$ & Atom group (e.g.\ cluster, residue, SS-element). \\
+$G$ & Atom group (e.g.\ cluster, residue, SSE-element). \\
 \bottomrule
 \end{longtable}
 
@@ -8688,10 +8723,10 @@ function names themselves are stable.
 \texttt{export.export\_embedding\_excel}              & \texttt{export.py}         & 645--708  \\
 \texttt{export.export\_interpolated\_excel}           & \texttt{export.py}         & 709--883  \\
 \texttt{export.export\_main\_excel}                   & \texttt{export.py}         & 329--592  \\
-\texttt{export.export\_ss\_excel}                     & \texttt{export.py}         & 593--644  \\
+\texttt{export.export\_sse\_excel}                     & \texttt{export.py}         & 593--644  \\
 \texttt{geometry.cluster\_normal}                     & \texttt{geometry.py}       & 336--371  \\
-\texttt{geometry.detect\_ss\_dssp}                    & \texttt{geometry.py}       & 1240--1422 \\
-\texttt{geometry.detect\_ss\_phipsi}                  & \texttt{geometry.py}       & 1423--1566 \\
+\texttt{geometry.detect\_sse\_dssp}                    & \texttt{geometry.py}       & 1240--1422 \\
+\texttt{geometry.detect\_sse\_phipsi}                  & \texttt{geometry.py}       & 1423--1566 \\
 \texttt{geometry.find\_all\_clusters}                 & \texttt{geometry.py}       & 80--192   \\
 \texttt{geometry.find\_cluster}                       & \texttt{geometry.py}       & 193--279  \\
 \texttt{geometry.find\_coordinating\_residues}        & \texttt{geometry.py}       & 752--917  \\

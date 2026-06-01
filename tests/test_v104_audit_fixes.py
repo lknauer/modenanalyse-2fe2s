@@ -4,7 +4,7 @@
 
 Covers:
 1. FUND 5+6 — analyze_his_hn now accepts u_rms and scales sigma correctly
-2. FUND 7  — analyze_ss_element honours cfg.sigma_eigvec (no hardcoded 1e-4)
+2. FUND 7  — analyze_sse_element honours cfg.sigma_eigvec (no hardcoded 1e-4)
 3. FUND 8  — compute_scsd_for_mode_full honours cfg.sigma_coord/sigma_eigvec
 4. FUND 1  — analyze_fe_ligand emits UserWarning on silent _zero_lig fallback
 5. FUND 2  — analyze_his_hn emits UserWarning on protonated-His lookup failure
@@ -109,13 +109,13 @@ def test_his_hn_value_and_sigma_have_same_scaling():
 
 
 # =============================================================================
-# FUND 7 — analyze_ss_element uses cfg.sigma_eigvec, not hardcoded 1e-4
+# FUND 7 — analyze_sse_element uses cfg.sigma_eigvec, not hardcoded 1e-4
 # =============================================================================
 
-def test_ss_element_sigma_responds_to_sigma_eigvec():
-    """SS-element sigma must scale linearly with the sigma_eigvec
+def test_sse_element_sigma_responds_to_sigma_eigvec():
+    """SSE-element sigma must scale linearly with the sigma_eigvec
     parameter. Pre-v1.0.4 it was hardcoded as 1e-4 and ignored cfg."""
-    from modenanalyse_2fe2s.core import analyze_ss_element
+    from modenanalyse_2fe2s.core import analyze_sse_element
 
     # Minimal stub: an alpha-helix with 5 Ca atoms, simple atom dict,
     # idx_map and c2l that match.
@@ -126,9 +126,9 @@ def test_ss_element_sigma_responds_to_sigma_eigvec():
     # Small displacement eigenvector
     evg = np.array([[0.01, 0., 0.] for _ in range(5)])
 
-    res1 = analyze_ss_element(evg, c2l, [1, 2, 3, 4, 5], atoms, idx_map,
+    res1 = analyze_sse_element(evg, c2l, [1, 2, 3, 4, 5], atoms, idx_map,
                                 "H", u_rms=0.05, sigma_eigvec=5e-4)
-    res2 = analyze_ss_element(evg, c2l, [1, 2, 3, 4, 5], atoms, idx_map,
+    res2 = analyze_sse_element(evg, c2l, [1, 2, 3, 4, 5], atoms, idx_map,
                                 "H", u_rms=0.05, sigma_eigvec=1e-3)
 
     s1 = res1["s_amplitude_mean"]
@@ -654,7 +654,7 @@ def test_synthetic_zero_mode_has_zero_observables():
     # Reorganization channels are empty (skipped by aggregators)
     assert r["reorg_per_mode"] == {}
     assert r["reorg_subchannels"] == []
-    # No eigenvector arrays -> SS/B-factor loops skip this mode
+    # No eigenvector arrays -> SSE/B-factor loops skip this mode
     assert "_evg" not in r
     assert "_centers" not in r
     assert "_c2l" not in r

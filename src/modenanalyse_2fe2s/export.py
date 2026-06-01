@@ -14,23 +14,23 @@ output files
 ``_analysis.xlsx``
     Core analysis: mode_analysis, groups, Fe-ligands, His_HN, kernel scores,
     distances, SCSD, reorganization energies, B-factors, info.
-``_analysis_SS.xlsx``
-    Secondary-structure amplitudes (only if SS elements present in the PDB).
+``_analysis_SSE.xlsx``
+    Secondary-structure amplitudes (only if SSE elements present in the PDB).
 ``_analysis_Embeddings.xlsx``
     UMAP coordinates, cluster sheets, C-alpha amplitudes.
 ``_analysis_interp{step}.xlsx``
     Interpolated core analysis on a uniform grid
     (step size = cfg.interp_step). Symmetric boundary treatment:
     context modes left (context_results_left) and right (context_results).
-``_analysis_SS_interp{step}.xlsx``
+``_analysis_SSE_interp{step}.xlsx``
     Secondary-structure amplitudes on a uniform grid.
 
 Public functions
 -----------------------
 export_main_excel
     Writes ``_analysis.xlsx``.
-export_ss_excel
-    Writes ``_analysis_SS.xlsx``.
+export_sse_excel
+    Writes ``_analysis_SSE.xlsx``.
 export_embedding_excel
     Writes ``_analysis_Embeddings.xlsx``.
 export_interpolated_excel
@@ -111,7 +111,7 @@ class ExportPayload:
     embed_feat_names:   list    = _field(default_factory=list)
     cluster_data:       dict    = _field(default_factory=dict)
     ca_data:            object  = None
-    ss_umap_data:       object  = None
+    sse_umap_data:       object  = None
     ca_umap_data:       object  = None        # NEW in v1.0.3: Ca-UMAP tuple from compute_ca_umap_cluster
 
 
@@ -147,16 +147,16 @@ def export_all(payload):
         atoms=p.atoms,
     )
 
-    if any(r.get("ss") for r in p.results):
-        export_ss_excel(
-            p.results, cfg.outname("_analysis_SS.xlsx"),
-            cfg, p.runlog, ss_umap_data=p.ss_umap_data,
+    if any(r.get("sse") for r in p.results):
+        export_sse_excel(
+            p.results, cfg.outname("_analysis_SSE.xlsx"),
+            cfg, p.runlog, sse_umap_data=p.sse_umap_data,
         )
-    elif cfg.analyze_ss:
+    elif cfg.analyze_sse:
         p.runlog.warn(
-            "SS-Export: no 'ss' key in results found. "
-            "_analysis_SS.xlsx will not be created. "
-            "Cause: SS analysis failed or ss_center_map empty.")
+            "SSE-Export: no 'sse' key in results found. "
+            "_analysis_SSE.xlsx will not be created. "
+            "Cause: SSE analysis failed or sse_center_map empty.")
 
     if p.embedding_coords or p.ca_data:
         export_embedding_excel(
@@ -180,25 +180,25 @@ def export_all(payload):
         p.runlog.warn(f"interpolation Excel failed: {exc}")
 
     try:
-        export_ss_interp_excel(
+        export_sse_interp_excel(
             p.results,
-            cfg.outname(f"_analysis_SS_interp{step:.2f}.xlsx"),
+            cfg.outname(f"_analysis_SSE_interp{step:.2f}.xlsx"),
             cfg, p.runlog,
             context_results=p.context_results,
             context_results_left=p.context_results_left,
         )
     except Exception as exc:
-        p.runlog.warn(f"SS-interpolation Excel failed: {exc}")
+        p.runlog.warn(f"SSE-interpolation Excel failed: {exc}")
 
     # Hardening v3.1: Embedding-PNGs are off by default. Set
     # cfg.export_embedding_plots = True to enable them. They cost time
     # and produce questionable images when HDBSCAN finds nothing.
-    # v1.0.3: now also renders SS-UMAP, Ca-UMAP and Ca-amplitude heatmap
+    # v1.0.3: now also renders SSE-UMAP, Ca-UMAP and Ca-amplitude heatmap
     # PNGs if the corresponding data has been computed.
     if getattr(cfg, "export_embedding_plots", False):
         export_embedding_plots(p.embedding_coords, p.results,
                                 cfg.outname, p.runlog,
-                                ss_umap_data=p.ss_umap_data,
+                                sse_umap_data=p.sse_umap_data,
                                 ca_umap_data=p.ca_umap_data,
                                 ca_data=p.ca_data)
 
@@ -587,54 +587,54 @@ def _ws_b_faktoren(wb, atoms, b_factors, cfg):
 
 
 # ===========================================================================
-# 2) SS-EXCEL
+# 2) SSE-EXCEL
 # ===========================================================================
 
-def export_ss_excel(
+def export_sse_excel(
         results:      List[Dict],
         outfile:      str,
         cfg:          Config,
         runlog:       RunLog,
-        ss_umap_data: Optional[Tuple] = None,
+        sse_umap_data: Optional[Tuple] = None,
 ):
-    """Writes the SS-Analyse in ``_analysis_SS.xlsx``.
+    """Writes the SSE-Analyse in ``_analysis_SSE.xlsx``.
 
-    Wird only erstellt if mindestens a Mode SS-Daten enthaelt.
+    Wird only erstellt if mindestens a Mode SSE-Daten enthaelt.
 
     Parameters
     ----------
     results : list of dict
-        Modenanalyse-Ergebnisse (required ``results[i]["ss"]``).
+        Modenanalyse-Ergebnisse (required ``results[i]["sse"]``).
     outfile : str
         Zieldatei.
     cfg : Config
         Konfiguration.
     runlog : RunLog
         Fuer Warnmeldungen and filepfad-Registrierung.
-    ss_umap_data : tuple, optional
-        Ausgabe von ``compute_ss_umap_cluster``; erzeugt
-        ``SS_UMAP_Cluster``-Sheet.
+    sse_umap_data : tuple, optional
+        Ausgabe von ``compute_sse_umap_cluster``; erzeugt
+        ``SSE_UMAP_Cluster``-Sheet.
 
     Notes
     -----
-    Sheets: SS_amplitude_mean | SS_amplitude_max | SS_com_amplitude |
-    SS_lateral_std | SS_lateral_amplitude | SS_stretching | SS_axial_amplitude |
-    SS_tilting_angle | SS_internal_amplitude | SS_UMAP_Cluster (optional).
+    Sheets: SSE_amplitude_mean | SSE_amplitude_max | SSE_com_amplitude |
+    SSE_lateral_std | SSE_lateral_amplitude | SSE_stretching | SSE_axial_amplitude |
+    SSE_tilting_angle | SSE_internal_amplitude | SSE_UMAP_Cluster (optional).
     """
-    if not [r for r in results if r.get("ss")]:
+    if not [r for r in results if r.get("sse")]:
         runlog.warn(
-            "SS-Export: Kein 'ss'-key in Ergebnissen — "
+            "SSE-Export: Kein 'sse'-key in Ergebnissen — "
             f"'{outfile}' will not be created. "
-            "Possible causes: analyze_ss=False, PDB without HELIX/SHEET records "
+            "Possible causes: analyze_sse=False, PDB without HELIX/SHEET records "
             "und DSSP/phi-psi without Treffer, or alle modes fehlgeschlagen.")
-        return   # no SS-Daten -> no file
+        return   # no SSE-Daten -> no file
     if not _HAS_OPENPYXL:
-        runlog.warn("SS export: openpyxl not installed -- no Excel export possible.")
+        runlog.warn("SSE export: openpyxl not installed -- no Excel export possible.")
         return
     wb = Workbook(); wb.remove(wb.active)
-    _ws_ss(wb, results, cfg.show_errors_in_excel)
-    if ss_umap_data and ss_umap_data[0] is not None:
-        _ws_ss_umap(wb, results, ss_umap_data, runlog)
+    _ws_sse(wb, results, cfg.show_errors_in_excel)
+    if sse_umap_data and sse_umap_data[0] is not None:
+        _ws_sse_umap(wb, results, sse_umap_data, runlog)
     _save(wb, outfile, runlog)
 
 
@@ -694,7 +694,7 @@ def export_embedding_excel(
         _ws_cluster_profil(wb, results, cluster_data, embed_feat_names)
     # NEW in v1.0.3: Ca-UMAP cluster sheets, written into the same
     # _analysis_Embeddings.xlsx alongside the global UMAP and Ca_amplitudes.
-    # Placing it here (instead of in _analysis_SS.xlsx alongside SS_UMAP)
+    # Placing it here (instead of in _analysis_SSE.xlsx alongside SSE_UMAP)
     # keeps all Ca-related data together: Ca_amplitudes (raw) and
     # Ca_UMAP_clusters / Ca_UMAP_profile (UMAP-derived) in one workbook.
     if ca_umap_data is not None and ca_umap_data[0] is not None:
@@ -857,7 +857,7 @@ def export_interpolated_excel(
             cols[f"{g}_o"] = ip([r["groups"].get(g,{}).get("oop",0.) for r in _all])
             cols[f"{g}_i"] = ip([r["groups"].get(g,{}).get("inp",0.) for r in _all])
         for l in ligs_s:
-            cols[f"{l}_ss"] = ip([r.get("fe_lig",{}).get(l,{}).get("stretch",0.) for r in _all])
+            cols[f"{l}_sse"] = ip([r.get("fe_lig",{}).get(l,{}).get("stretch",0.) for r in _all])
             cols[f"{l}_sb"] = ip([r.get("fe_lig",{}).get(l,{}).get("bend",   0.) for r in _all])
         for l in ligs_n:
             cols[f"{l}_ns"] = ip([r.get("fe_lig",{}).get(l,{}).get("stretch",0.) for r in _all])
@@ -870,7 +870,7 @@ def export_interpolated_excel(
                   "koop","kd","kloc","urms"] +
                  [f"ks_{sk}" for sk in _SCORE_KEYS] +
                  [f"{g}_o" for g in gn] + [f"{g}_i" for g in gn] +
-                 [f"{l}_ss" for l in ligs_s] + [f"{l}_sb" for l in ligs_s] +
+                 [f"{l}_sse" for l in ligs_s] + [f"{l}_sb" for l in ligs_s] +
                  [f"{l}_ns" for l in ligs_n] + [f"{l}_nb" for l in ligs_n] +
                  [f"{l}_hn" for l in his_prot_labels])
 
@@ -891,10 +891,10 @@ def export_interpolated_excel(
 
 
 # ===========================================================================
-# 5b) SS-INTERPOLATIONS-EXCEL  (_analysis_SS_interp.xlsx)
+# 5b) SSE-INTERPOLATIONS-EXCEL  (_analysis_SSE_interp.xlsx)
 # ===========================================================================
 
-def export_ss_interp_excel(
+def export_sse_interp_excel(
         results:              List[Dict],
         outfile:              str,
         cfg:                  Config,
@@ -902,15 +902,15 @@ def export_ss_interp_excel(
         context_results:      Optional[List[Dict]] = None,
         context_results_left: Optional[List[Dict]] = None,
 ):
-    """Writes interpolierte SS-Amplituden in ``_analysis_SS_interp{step}.xlsx``.
+    """Writes interpolierte SSE-Amplituden in ``_analysis_SSE_interp{step}.xlsx``.
 
     Fuer jede the 9 Amplituden-Metriken ein eigenes Sheet.
-    Zeilen = SS-elements, Spalten = interpoliertes Frequenzraster.
+    Zeilen = SSE-elements, Spalten = interpoliertes Frequenzraster.
 
     Parameters
     ----------
     results : list of dict
-        Modenanalyse-Ergebnisse with ``results[i]["ss"]`` entriesn.
+        Modenanalyse-Ergebnisse with ``results[i]["sse"]`` entriesn.
     outfile : str
         Zieldatei.
     cfg : Config
@@ -923,17 +923,17 @@ def export_ss_interp_excel(
         Kontext-modes unterhalb von ``freq_min`` (links).
     """
     if not _HAS_OPENPYXL:
-        runlog.warn("SS interp export: openpyxl not installed, "
-                    "_analysis_SS_interp*.xlsx will not be created.")
+        runlog.warn("SSE interp export: openpyxl not installed, "
+                    "_analysis_SSE_interp*.xlsx will not be created.")
         return
-    ss_all = [r for r in results if r.get("ss")]
-    if not ss_all:
-        runlog.warn("SS-Interp-Export: no modes with SS data, "
-                    "_analysis_SS_interp*.xlsx will not be created.")
+    sse_all = [r for r in results if r.get("sse")]
+    if not sse_all:
+        runlog.warn("SSE-Interp-Export: no modes with SSE data, "
+                    "_analysis_SSE_interp*.xlsx will not be created.")
         return
 
     try:
-        freqs  = np.array([r["freq"] for r in ss_all])
+        freqs  = np.array([r["freq"] for r in sse_all])
         _ctx_l = context_results_left or []
         _ctx_r = context_results or []
         # np.interp requires monoton steigende x-values -> explizit sortieren
@@ -952,7 +952,7 @@ def export_ss_interp_excel(
         f_grid = np.arange(f_min, f_max + cfg.interp_step/2, cfg.interp_step)
         n      = len(f_grid)
 
-        ss_names = list(ss_all[0]["ss"].keys())
+        sse_names = list(sse_all[0]["sse"].keys())
         metrics  = [
             "amplitude_mean", "amplitude_max", "com_amplitude",
             "lateral_std",    "lateral_amplitude",  "stretching",
@@ -961,11 +961,11 @@ def export_ss_interp_excel(
 
         wb = Workbook(); wb.remove(wb.active)
         # interp_boundary_mode einmal bestimmen, not in jeder Schleifeniterration
-        _ss_bmode = getattr(cfg, "interp_boundary_mode", "context")
+        _sse_bmode = getattr(cfg, "interp_boundary_mode", "context")
 
         for metric in metrics:
             ws = wb.create_sheet(metric[:31])   # Excel max sheet name length
-            _hc(ws, 1, 1, "SS-element", 20, "1B5E20")
+            _hc(ws, 1, 1, "SSE-element", 20, "1B5E20")
             for ci, freq in enumerate(f_grid, 2):
                 ws.cell(1, ci, round(float(freq), 3)).font = \
                     Font(name="Arial", size=8)
@@ -973,24 +973,24 @@ def export_ss_interp_excel(
             ws.row_dimensions[1].height = 28
             ws.column_dimensions["A"].width = 22
 
-            for ri, sname in enumerate(ss_names, 2):
+            for ri, sname in enumerate(sse_names, 2):
                 ws.cell(ri, 1, sname).font = Font(name="Arial", bold=True, size=9)
-                # values for dieses SS-element over alle Moden
-                raw_vals = [r["ss"].get(sname, {}).get(metric, 0.)
-                            for r in ss_all]
+                # values for dieses SSE-element over alle Moden
+                raw_vals = [r["sse"].get(sname, {}).get(metric, 0.)
+                            for r in sse_all]
                 raw_c = [v if np.isfinite(v) else 0. for v in raw_vals]
                 _left_v  = raw_c[0]  if raw_c else 0.
                 _right_v = raw_c[-1] if raw_c else 0.
                 if _ctx_l or _ctx_r:
                     raw_full = np.concatenate([
                         np.zeros(len(_ctx_l)), raw_c, np.zeros(len(_ctx_r))])
-                    _lv = _left_v  if _ss_bmode == "nearest" else 0.
-                    _rv = _right_v if _ss_bmode == "nearest" else 0.
+                    _lv = _left_v  if _sse_bmode == "nearest" else 0.
+                    _rv = _right_v if _sse_bmode == "nearest" else 0.
                     interpolated = np.interp(f_grid, freqs_full, raw_full,
                                              left=_lv, right=_rv)
                 else:
-                    _lv = _left_v  if _ss_bmode == "nearest" else 0.
-                    _rv = _right_v if _ss_bmode == "nearest" else 0.
+                    _lv = _left_v  if _sse_bmode == "nearest" else 0.
+                    _rv = _right_v if _sse_bmode == "nearest" else 0.
                     interpolated = np.interp(f_grid, freqs, raw_c,
                                              left=_lv, right=_rv)
                 for ci, val in enumerate(interpolated, 2):
@@ -1000,24 +1000,24 @@ def export_ss_interp_excel(
 
         wb.save(outfile)
         print(f"  -> {os.path.basename(outfile)}"
-              f"  ({n} grid points, {len(ss_names)} SS-elements, "
+              f"  ({n} grid points, {len(sse_names)} SSE-elements, "
               f"{len(metrics)} Metriken)")
         runlog.add_output(outfile)
     except Exception as e:
-        runlog.warn(f"SS-interpolation Excel failed: {e}")
+        runlog.warn(f"SSE-interpolation Excel failed: {e}")
 
 
 
 
 def export_embedding_plots(embedding_coords, results, outname_fn, runlog,
-                            ss_umap_data=None, ca_umap_data=None, ca_data=None):
+                            sse_umap_data=None, ca_umap_data=None, ca_data=None):
     """Writes Embedding PNGs with frequency, mode-type and cluster coloring.
 
     Produces (depending on what data is available):
 
     - ``_embedding_UMAP.png``: global UMAP, 2-panel layout
       (frequency + mode-type).
-    - ``_embedding_SS_UMAP.png``: SS-feature UMAP, 3-panel layout
+    - ``_embedding_SSE_UMAP.png``: SSE-feature UMAP, 3-panel layout
       (frequency + mode-type + HDBSCAN cluster). NEW in v1.0.3.
     - ``_embedding_Ca_UMAP.png``: Ca-amplitude UMAP, 3-panel layout.
       NEW in v1.0.3.
@@ -1025,7 +1025,7 @@ def export_embedding_plots(embedding_coords, results, outname_fn, runlog,
       frequency heatmap (log color scale). NEW in v1.0.3.
 
     Bug fix history: in v1.0.2 and earlier this function only rendered
-    ``embedding_coords`` (i.e. the global UMAP), even though SS-UMAP
+    ``embedding_coords`` (i.e. the global UMAP), even though SSE-UMAP
     coordinates and C-alpha amplitudes were already computed and
     exported as Excel data. Users running the standard pipeline never
     saw a graphical representation of these results unless they
@@ -1045,8 +1045,8 @@ def export_embedding_plots(embedding_coords, results, outname_fn, runlog,
         ``cfg.outname``; builds the full output path.
     runlog : RunLog
         For warning messages and output-file registration.
-    ss_umap_data : tuple, optional
-        Tuple returned by ``embedding.compute_ss_umap_cluster``:
+    sse_umap_data : tuple, optional
+        Tuple returned by ``embedding.compute_sse_umap_cluster``:
         ``(Z2d, full_labels, feat_names, X_norm, valid_idx, cluster_chars)``.
     ca_umap_data : tuple, optional
         Tuple returned by ``embedding.compute_ca_umap_cluster``:
@@ -1136,23 +1136,23 @@ def export_embedding_plots(embedding_coords, results, outname_fn, runlog,
         runlog.add_output(path)
 
     # ------------------------------------------------------------------
-    # 2) SS-UMAP 3-panel PNG (NEW in v1.0.3)
+    # 2) SSE-UMAP 3-panel PNG (NEW in v1.0.3)
     # ------------------------------------------------------------------
-    if ss_umap_data is not None:
+    if sse_umap_data is not None:
         try:
-            ss_Z2d, ss_full_labels = ss_umap_data[0], ss_umap_data[1]
-            ss_valid_idx = ss_umap_data[4] if len(ss_umap_data) > 4 else None
+            sse_Z2d, sse_full_labels = sse_umap_data[0], sse_umap_data[1]
+            sse_valid_idx = sse_umap_data[4] if len(sse_umap_data) > 4 else None
         except (TypeError, IndexError):
-            ss_Z2d = ss_full_labels = ss_valid_idx = None
+            sse_Z2d = sse_full_labels = sse_valid_idx = None
 
-        if ss_Z2d is not None and ss_valid_idx is not None and len(ss_Z2d) > 0:
-            freqs_ss = np.array([results[i]["freq"] for i in ss_valid_idx])
-            types_ss = [results[i]["mode_type"] for i in ss_valid_idx]
-            labels_ss = np.array([ss_full_labels[i] for i in ss_valid_idx])
+        if sse_Z2d is not None and sse_valid_idx is not None and len(sse_Z2d) > 0:
+            freqs_sse = np.array([results[i]["freq"] for i in sse_valid_idx])
+            types_sse = [results[i]["mode_type"] for i in sse_valid_idx]
+            labels_sse = np.array([sse_full_labels[i] for i in sse_valid_idx])
             _render_umap_three_panel(
-                np.asarray(ss_Z2d), labels_ss, freqs_ss, types_ss,
-                title_prefix="SS-UMAP",
-                out_suffix="_embedding_SS_UMAP.png")
+                np.asarray(sse_Z2d), labels_sse, freqs_sse, types_sse,
+                title_prefix="SSE-UMAP",
+                out_suffix="_embedding_SSE_UMAP.png")
 
     # ------------------------------------------------------------------
     # 3) Ca-UMAP 3-panel PNG (NEW in v1.0.3)
@@ -1956,7 +1956,7 @@ def _ws_info(wb, results, cfg, coord_info, dist_ref, logname, cluster_info):
     ri=ir(ri,"SCSD (SCSD-Sheet)",
           "RIGOROUS - orthogonale D2h symmetry decomposition (Kingsbury-Methode)",
           "values over Strukturen direkt vergleichbar (kanonische Referenz)")
-    ri=ir(ri,"SS-Amplituden (SS-Sheets)",
+    ri=ir(ri,"SSE-Amplituden (SSE-Sheets)",
           "HEURISTISCH - geometrische Naeherungsmetriken",
           "s_*-Spalten: heuristische Stabilitaetsmasse, no exakte error propagation")
     ri=ir(ri,"OOP/INP-Klassifikation (binaer, Spalte 'Typ')",
@@ -2003,36 +2003,36 @@ def _ws_info(wb, results, cfg, coord_info, dist_ref, logname, cluster_info):
     ws.column_dimensions["C"].width=55
 
 
-def _ws_ss(wb, results, E):
-    """Sheet 'SS_elements': Amplituden aller Sekundaerstrukturelemente per Mode."""
-    ss_all=[r for r in results if r.get("ss")]
-    if not ss_all: return
-    ss_names=list(ss_all[0]["ss"].keys())
+def _ws_sse(wb, results, E):
+    """Sheet 'SSE_elements': Amplituden aller Sekundaerstrukturelemente per Mode."""
+    sse_all=[r for r in results if r.get("sse")]
+    if not sse_all: return
+    sse_names=list(sse_all[0]["sse"].keys())
     for metric in ["amplitude_mean","amplitude_max","com_amplitude","lateral_std",
                    "lateral_amplitude","stretching","axial_amplitude","tilting_angle",
                    "internal_amplitude"]:
-        ws=wb.create_sheet("SS_"+metric[:20])
-        _hc(ws,1,1,"SS-element",18,"1B5E20")
-        for ji,r in enumerate(ss_all,2): _hc(ws,1,ji,f"{r['freq']:.2f}",9,"1B5E20")
-        for ri,sn in enumerate(ss_names,2):
+        ws=wb.create_sheet("SSE_"+metric[:20])
+        _hc(ws,1,1,"SSE-element",18,"1B5E20")
+        for ji,r in enumerate(sse_all,2): _hc(ws,1,ji,f"{r['freq']:.2f}",9,"1B5E20")
+        for ri,sn in enumerate(sse_names,2):
             ws.cell(ri,1,sn).font=Font(name="Arial",bold=True,size=9)
-            for ji,r in enumerate(ss_all,2):
-                _dc(ws,ri,ji,r["ss"].get(sn,{}).get(metric,0.))
+            for ji,r in enumerate(sse_all,2):
+                _dc(ws,ri,ji,r["sse"].get(sn,{}).get(metric,0.))
 
 
-def _ws_ss_umap(wb, results, ss_umap_data, runlog):
-    """Sheets 'SS_UMAP_Cluster' and 'SS_UMAP_Profil': Koordinaten + Z-Score-Profil."""
+def _ws_sse_umap(wb, results, sse_umap_data, runlog):
+    """Sheets 'SSE_UMAP_Cluster' and 'SSE_UMAP_Profil': Koordinaten + Z-Score-Profil."""
     try:
-        Z2d, full_labels, feat_names, X_norm, valid_idx, cluster_chars = ss_umap_data
+        Z2d, full_labels, feat_names, X_norm, valid_idx, cluster_chars = sse_umap_data
         if Z2d is None: return
         vi   = {gi: li for li, gi in enumerate(valid_idx)}
         fills = ["C8E6C9","A5D6A7","81C784","66BB6A","4CAF50",
                  "B2DFDB","DCEDC8","F0F4C3","E8F5E9","C8E6C9"]
 
         # ── Sheet 1: Koordinaten ─────────────────────────────────────
-        ws = wb.create_sheet("SS_UMAP_clusters")
+        ws = wb.create_sheet("SSE_UMAP_clusters")
         for ci, (t, w) in enumerate([("Frequency", 12), ("Type", 14),
-                                      ("SS-Cluster", 13),
+                                      ("SSE-Cluster", 13),
                                       ("UMAP Dim1", 12), ("UMAP Dim2", 12)], 1):
             _hc(ws, 1, ci, t, w, "1B5E20")
         for ri, r in enumerate(results, 2):
@@ -2050,13 +2050,13 @@ def _ws_ss_umap(wb, results, ss_umap_data, runlog):
 
         # ── Sheet 2: Z-Score-Profil ──────────────────────────────────
         if not cluster_chars: return
-        ws2 = wb.create_sheet("SS_UMAP_profile")
+        ws2 = wb.create_sheet("SSE_UMAP_profile")
         cluster_ids = sorted(k for k in cluster_chars.keys()
                              if isinstance(k, (int, np.integer)) and k >= 0)
         n_cl = len(cluster_ids)
 
         # Titel
-        ws2.cell(1, 1, f"Cluster-Analyse: SS_UMAP  ({n_cl} Cluster)")
+        ws2.cell(1, 1, f"Cluster-Analyse: SSE_UMAP  ({n_cl} Cluster)")
         ws2.cell(1, 1).font = Font(name="Arial", bold=True, size=10,
                                     color="FFFFFF")
         ws2.cell(1, 1).fill = PatternFill("solid", fgColor="1B5E20")
@@ -2065,7 +2065,7 @@ def _ws_ss_umap(wb, results, ss_umap_data, runlog):
         ws2.row_dimensions[1].height = 22
 
         # Z-Score-Abschnitt
-        ws2.cell(3, 1, "A) Z-Score-Profil (SS-Amplitudenfeatures)")
+        ws2.cell(3, 1, "A) Z-Score-Profil (SSE-Amplitudenfeatures)")
         ws2.cell(3, 1).font = Font(name="Arial", bold=True, size=9,
                                     color="1B5E20")
         ri = 4
@@ -2131,14 +2131,14 @@ def _ws_ss_umap(wb, results, ss_umap_data, runlog):
         ws2.freeze_panes = "A5"
 
     except Exception as e:
-        runlog.warn(f"SS-UMAP-Sheet: {e}")
+        runlog.warn(f"SSE-UMAP-Sheet: {e}")
 
 
 def _ws_ca_umap(wb, results, ca_umap_data, runlog):
     """Sheets 'Ca_UMAP_clusters' and 'Ca_UMAP_profile': UMAP coords + Z-score profile.
 
-    Mirrors ``_ws_ss_umap`` but consumes the output of
-    ``compute_ca_umap_cluster`` and uses a blue theme (vs green for SS-UMAP)
+    Mirrors ``_ws_sse_umap`` but consumes the output of
+    ``compute_ca_umap_cluster`` and uses a blue theme (vs green for SSE-UMAP)
     to keep the two embeddings visually distinct.
 
     New in v1.0.3.

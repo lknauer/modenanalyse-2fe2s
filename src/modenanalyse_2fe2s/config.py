@@ -26,7 +26,7 @@ TOML-based usage::
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 
@@ -39,7 +39,7 @@ class Config:
     log_file : str
         Path to the Gaussian ``.log`` or ORCA ``.hess`` file.
     pdb_file : str
-        Path to the PDB file for coordination detection and SS analysis.
+        Path to the PDB file for coordination detection and SSE analysis.
     output_dir : str
         Output directory. Empty = directory of the .log file.
     freq_min : float or None
@@ -78,12 +78,12 @@ class Config:
         Output H-N bond modulation for protonated histidines.
     interp_step : float
         Grid spacing for interpolated Excel in cm^-1.
-    analyze_ss : bool
+    analyze_sse : bool
         Secondary-structure analysis (requires PDB).
     analyze_scsd : bool
         SCSD decomposition (requires ``pip install scsdpy``).
-    ss_chain : str
-        Chain for SS analysis. Empty = all chains.
+    sse_chain : str
+        Chain for SSE analysis. Empty = all chains.
     fe_s_cutoff : float
         Maximum Fe-S distance within the cluster in Angstrom.
     fe_fe_cutoff : float
@@ -195,9 +195,9 @@ class Config:
     analysis_full:    bool = False
 
     # -- Secondary structure + SCSD ------------------------------------
-    analyze_ss:           bool  = True
+    analyze_sse:           bool  = True
     analyze_scsd:         bool  = True
-    ss_chain:             str   = ""
+    sse_chain:             str   = ""
 
     # -- Cluster geometry ----------------------------------------------
     fe_s_cutoff:          float = 3.0
@@ -383,8 +383,8 @@ class Config:
             errors.append("strict_cluster muss True or False sein.")
         if not isinstance(self.show_errors_in_excel, bool):
             errors.append("show_errors_in_excel muss True or False sein.")
-        if not isinstance(self.analyze_ss, bool):
-            errors.append("analyze_ss muss True or False sein.")
+        if not isinstance(self.analyze_sse, bool):
+            errors.append("analyze_sse muss True or False sein.")
         if not isinstance(self.analyze_scsd, bool):
             errors.append("analyze_scsd muss True or False sein.")
         if not isinstance(self.include_hn_vibration, bool):
@@ -570,6 +570,20 @@ class Config:
                     UserWarning, stacklevel=2)
                 flat.pop(_k)
 
+        # v1.1.0: backward-compatible aliases for the SS -> SSE rename.
+        # Accept the legacy TOML keys and map them onto the new field names,
+        # so that pre-1.1.0 configurations keep working unchanged.
+        _sse_aliases = {"analyze_ss": "analyze_sse", "ss_chain": "sse_chain"}
+        for _old, _new in _sse_aliases.items():
+            if _old in flat:
+                if _new not in flat:
+                    flat[_new] = flat[_old]
+                _w.warn(
+                    f"TOML: key '{_old}' was renamed to '{_new}' in v1.1.0; "
+                    f"the legacy name is still accepted.",
+                    DeprecationWarning, stacklevel=2)
+                flat.pop(_old)
+
         # validation against the Felder the Datenklasse
         import dataclasses as _dc
         valid_fields = {f.name for f in _dc.fields(cls)}
@@ -616,7 +630,7 @@ class Config:
             "output":    ["analysis_compact", "analysis_full",
                           "significance_threshold_low",
                           "significance_threshold_high"],
-            "scsd":      ["analyze_scsd", "analyze_ss", "ss_chain"],
+            "scsd":      ["analyze_scsd", "analyze_sse", "sse_chain"],
             "pcet":      ["pcet_enabled", "pcet_hbond_cutoff_a",
                           "pcet_acceptor_r0_a",
                           "pcet_acceptor_sigma_a",
@@ -691,7 +705,7 @@ class Config:
             f.write("\n".join(lines) + "\n")
 
 
-__version__ = "1.0.4"
+__version__ = "1.1.0"
 # v1.0.1: Documentation cleanup release. No code changes — analysis
 # pipeline is identical to v1.0.0 and produces numerically identical
 # results. See CHANGELOG.md for the full list of documentation fixes.

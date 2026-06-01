@@ -19,8 +19,8 @@ kabsch_align
     Kabsch-Alignment PDB → Gaussian-Koordinaten.
 find_coordinating_residues
     Erkennt koordinierende amino acidn automatically from the PDB-Geometrie.
-build_ss_center_map
-    Creates the Mapping SS-element → Gaussian-Center-Nummern.
+build_sse_center_map
+    Creates the Mapping SSE-element → Gaussian-Center-Nummern.
 get_calpha_centers
     Returns Gaussian-Center-Nummern aller Cα-Atome .
 
@@ -33,7 +33,7 @@ CoordInfo
 
 Bugfixes (gegenvia Vorversion)
 ---------------------------------
-B2  SS-Analyse:          PDB listnindizes ≠ Gaussian-Center-Reihenfolge.
+B2  SSE-Analyse:          PDB listnindizes ≠ Gaussian-Center-Reihenfolge.
                          Behoben through ``pdb_to_center``-Mapping
                          (PDB-Index → Gaussian-Center).
 B7  Fe-N/S/O-Analyse:    Das koordinierende Fe is jetzt aus
@@ -43,7 +43,6 @@ B7  Fe-N/S/O-Analyse:    Das koordinierende Fe is jetzt aus
 from __future__ import annotations
 
 import math
-import warnings
 from collections import defaultdict
 from dataclasses import dataclass, field
 from itertools import combinations
@@ -52,7 +51,7 @@ from typing import Dict, List, Optional, Set, Tuple
 import numpy as np
 
 from .config import Config
-from .logio import RunLog, _HIS, _CYS, parse_pdb
+from .logio import RunLog, _HIS
 
 
 
@@ -643,7 +642,7 @@ class CoordInfo:
         Wird for OOP/INP-Gruppen-Amplituden used.
     pdb_to_center : dict of {int: int}
         Mapping PDB atom listn-Index → Gaussian-Center-Nummer.
-        Basis of the korrekten SS-Index-Mappings (Bugfix B2).
+        Basis of the korrekten SSE-Index-Mappings (Bugfix B2).
     his_ligand_labels : list of str
         Labels aller His-ligands (fuer bedingtes His_HN-Sheet).
     pcet_info : object or None
@@ -707,7 +706,7 @@ def _build_pdb_to_center_map(
 
     Notes
     -----
-    Bugfix B2: Stellt the korrekte Basis for the SS-Index-Mapping bereit.
+    Bugfix B2: Stellt the korrekte Basis for the SSE-Index-Mapping bereit.
     Die drei Rückgabewerte are in ``find_coordinating_residues`` direkt
     entpackt: ``pdb_to_center, match_dists, n_ambiguous = _build_pdb_to_center_map(...)``.
     """
@@ -949,7 +948,7 @@ def find_coordinating_residues(
     if match_pct < 80.0:
         runlog.warn(
             f"PDB matching: only {match_pct:.1f}% of heavy PDB atoms "
-            f"zugeordnet. SS- and Gruppen-Amplituden koennen uncomplete sein.")
+            f"zugeordnet. SSE- and Gruppen-Amplituden koennen uncomplete sein.")
     # v1.0.4: warn on high ambiguity. A match is "ambiguous" when more
     # than one Gaussian atom falls within the matching tolerance of a
     # PDB atom. The matcher picks the closest, which is usually right,
@@ -1161,20 +1160,20 @@ def _build_group_map(
 
 
 # ===========================================================================
-# SS-Index-Mapping  (Bugfix B2)
+# SSE-Index-Mapping  (Bugfix B2)
 # ===========================================================================
 
-def build_ss_center_map(
-        ss_elements:   List[Dict],
+def build_sse_center_map(
+        sse_elements:   List[Dict],
         pdb_data:      Dict,
         pdb_to_center: Dict[int, int],
         chain_filter:  str = "",
 ) -> Dict[str, List[int]]:
-    """Creates the Mapping SS-element-Name → Gaussian-Center-Nummern.
+    """Creates the Mapping SSE-element-Name → Gaussian-Center-Nummern.
 
     Parameters
     ----------
-    ss_elements : list of dict
+    sse_elements : list of dict
         HELIX/SHEET-Records from ``parse_pdb``.
     pdb_data : dict
         Ausgabe von ``parse_pdb``.
@@ -1186,18 +1185,18 @@ def build_ss_center_map(
     Returns
     -------
     dict of {str: list of int}
-        Mapping SS-element-Name → Gaussian-Center-Nummern.
+        Mapping SSE-element-Name → Gaussian-Center-Nummern.
 
     Notes
     -----
     Bugfix B2: Verwendet ``pdb_to_center`` statt einfacher PDB listnindizes.
-    Damit are SS-elements korrekt on the Gaussian-Eigenvektor-Zeilen
+    Damit are SSE-elements korrekt on the Gaussian-Eigenvektor-Zeilen
     abgebildet.
     """
     pdb_heavy     = [a for a in pdb_data["atoms_h"] if not a["is_h"]]
-    ss_center_map: Dict[str, List[int]] = {}
+    sse_center_map: Dict[str, List[int]] = {}
 
-    for elem in ss_elements:
+    for elem in sse_elements:
         if chain_filter and elem.get("chain", "") != chain_filter:
             continue
         centers = [
@@ -1208,9 +1207,59 @@ def build_ss_center_map(
                pi in pdb_to_center
         ]
         if centers:
-            ss_center_map[elem["name"]] = centers
+            sse_center_map[elem["name"]] = centers
 
-    return ss_center_map
+    return sse_center_map
+
+
+def build_sse_ca_center_map(
+        sse_elements:   List[Dict],
+        pdb_data:      Dict,
+        pdb_to_center: Dict[int, int],
+        chain_filter:  str = "",
+) -> Dict[str, List[int]]:
+    """Per-element Gaussian centres of the backbone C-alpha atoms only.
+
+    Used to define a robust principal axis for each SSE element (the backbone
+    trace), independent of side-chain atoms which can dominate the coordinate
+    variance of short helices and tilt the SVD axis away from the true helix
+    axis. Same indexing convention as :func:`build_sse_center_map` (Bugfix B2).
+
+    Parameters
+    ----------
+    sse_elements : list of dict
+        HELIX/SHEET records from ``parse_pdb``.
+    pdb_data : dict
+        Output of ``parse_pdb``.
+    pdb_to_center : dict of {int: int}
+        PDB heavy-atom index -> Gaussian center.
+    chain_filter : str, optional
+        Chain ID; empty = all chains.
+
+    Returns
+    -------
+    dict of {str: list of int}
+        Mapping SSE-element name -> Gaussian centers of its C-alpha atoms.
+        Elements with fewer than two resolved C-alphas are omitted (the
+        caller then falls back to the all-atom axis).
+    """
+    pdb_heavy = [a for a in pdb_data["atoms_h"] if not a["is_h"]]
+    ca_map: Dict[str, List[int]] = {}
+
+    for elem in sse_elements:
+        if chain_filter and elem.get("chain", "") != chain_filter:
+            continue
+        centers = [
+            pdb_to_center[pi]
+            for pi, a in enumerate(pdb_heavy)
+            if (not chain_filter or a["chain"] == chain_filter) and
+               elem["res_start"] <= a["rnum"] <= elem["res_end"] and
+               a["aname"] == "CA" and pi in pdb_to_center
+        ]
+        if len(centers) >= 2:
+            ca_map[elem["name"]] = centers
+
+    return ca_map
 
 
 def get_calpha_centers(
@@ -1242,7 +1291,7 @@ def get_calpha_centers(
     ]
 
 
-def detect_ss_dssp(
+def detect_sse_dssp(
         pdb_data: Dict,
         chain_filter: str = "A",
         min_helix: int = 4,
@@ -1268,7 +1317,7 @@ def detect_ss_dssp(
 
     Wird als primaerer Fallback called if the PDB-file keine
     HELIX/SHEET-Records enthaelt. For leerer Ausgabe greift
-    ``detect_ss_phipsi`` als sekundaerer Fallback.
+    ``detect_sse_phipsi`` als sekundaerer Fallback.
 
     Parameters
     ----------
@@ -1285,7 +1334,7 @@ def detect_ss_dssp(
     Returns
     -------
     list of dict
-        SS-elements with ``"auto_detected": True``.
+        SSE-elements with ``"auto_detected": True``.
 
     Notes
     -----
@@ -1365,8 +1414,8 @@ def detect_ss_dssp(
             if E < -0.5:
                 hbonds.add((rnum_j, rnum_i))
 
-    # 4. SS-Klassifikation after DSSP-Mustern
-    ss_type: Dict[int, str] = {rnum: "C" for rnum in rnums}
+    # 4. SSE-Klassifikation after DSSP-Mustern
+    sse_type: Dict[int, str] = {rnum: "C" for rnum in rnums}
     rnum_to_idx: Dict[int, int] = {rnum: i for i, rnum in enumerate(rnums)}
 
     # Alpha-Helix (i→i+4), 3_10-Helix (i→i+3), Pi-Helix (i→i+5)
@@ -1376,34 +1425,34 @@ def detect_ss_dssp(
                 rnum_i = rnums[j_idx - offset]
                 if (rnum_j, rnum_i) in hbonds:
                     for k in range(max(0, j_idx - offset + 1), j_idx + 1):
-                        ss_type[rnums[k]] = "H"
+                        sse_type[rnums[k]] = "H"
 
     # Beta-Strang: H-Bruecken to entfernten Residuen (|i-j| > 5)
     for rnum_j, rnum_i in hbonds:
         if abs(rnum_to_idx[rnum_j] - rnum_to_idx[rnum_i]) > 5:
-            if ss_type.get(rnum_j, "C") == "C":
-                ss_type[rnum_j] = "E"
-            if ss_type.get(rnum_i, "C") == "C":
-                ss_type[rnum_i] = "E"
+            if sse_type.get(rnum_j, "C") == "C":
+                sse_type[rnum_j] = "E"
+            if sse_type.get(rnum_i, "C") == "C":
+                sse_type[rnum_i] = "E"
 
-    # 5. Konsekutive gleichartige Residuen to SS-elementsn gruppieren
-    ss_elements: List[Dict] = []
+    # 5. Konsekutive gleichartige Residuen to SSE-elementsn gruppieren
+    sse_elements: List[Dict] = []
     i = 0
     while i < len(rnums):
-        t = ss_type.get(rnums[i], "C")
+        t = sse_type.get(rnums[i], "C")
         if t == "C":
             i += 1
             continue
         j = i + 1
         while (j < len(rnums) and
-               ss_type.get(rnums[j], "C") == t and
+               sse_type.get(rnums[j], "C") == t and
                rnums[j] - rnums[j - 1] <= 2):
             j += 1
         r1  = rnums[i]
         r2  = rnums[j - 1]
         ch  = chain_filter or "A"
         if t == "H" and (r2 - r1 + 1) >= min_helix:
-            ss_elements.append({
+            sse_elements.append({
                 "type":          "helix",
                 "chain":         ch,
                 "res_start":     r1,
@@ -1412,7 +1461,7 @@ def detect_ss_dssp(
                 "auto_detected": True,
             })
         elif t == "E" and (r2 - r1 + 1) >= min_sheet:
-            ss_elements.append({
+            sse_elements.append({
                 "type":          "sheet",
                 "chain":         ch,
                 "res_start":     r1,
@@ -1422,10 +1471,10 @@ def detect_ss_dssp(
             })
         i = j
 
-    return ss_elements
+    return sse_elements
 
 
-def detect_ss_phipsi(
+def detect_sse_phipsi(
         pdb_data: Dict,
         chain_filter: str = "A",
         min_helix: int = 4,
@@ -1433,7 +1482,7 @@ def detect_ss_phipsi(
 ) -> List[Dict]:
     """Erkennt Sekundaerstrukturelemente from Backbone-Dihedralwinkeln phi/psi.
 
-    Sekundaerer Fallback, the only called is if ``detect_ss_dssp``
+    Sekundaerer Fallback, the only called is if ``detect_sse_dssp``
     no elements findet (e.g. because H-Atome complete fehlen).
 
     Verwendet vereinfachte Ramachandran-Regionen (Kabsch & Sander 1983, [11]):
@@ -1456,7 +1505,7 @@ def detect_ss_phipsi(
     Returns
     -------
     list of dict
-        SS-elements with ``"auto_detected": True``.
+        SSE-elements with ``"auto_detected": True``.
     """
 
     def _dihedral(p0: np.ndarray, p1: np.ndarray,
@@ -1487,13 +1536,13 @@ def detect_ss_phipsi(
         residues[rnum][aname] = np.array([a["x"], a["y"], a["z"]], dtype=float)
 
     rnums = sorted(residues.keys())
-    ss_type: Dict[int, str] = {}
+    sse_type: Dict[int, str] = {}
     _n_fail_phipsi = 0  # Residuen without berechenbare Dihedralwinkel
 
     for i, rnum in enumerate(rnums):
         res = residues[rnum]
         if not all(k in res for k in ("N", "CA", "C")):
-            ss_type[rnum] = "C"
+            sse_type[rnum] = "C"
             continue
 
         phi: Optional[float] = None
@@ -1516,40 +1565,40 @@ def detect_ss_phipsi(
                     _n_fail_phipsi += 1  # psi undefined (terminal/bad coords)
 
         if phi is None or psi is None:
-            ss_type[rnum] = "C"
+            sse_type[rnum] = "C"
             _n_fail_phipsi += 1
         elif -90.0 <= phi <= -30.0 and -70.0 <= psi <= -10.0:
-            ss_type[rnum] = "H"
+            sse_type[rnum] = "H"
         elif (-160.0 <= phi <= -60.0 and
               (90.0 <= psi <= 180.0 or -180.0 <= psi <= -120.0)):
-            ss_type[rnum] = "E"
+            sse_type[rnum] = "E"
         else:
-            ss_type[rnum] = "C"
+            sse_type[rnum] = "C"
 
-    ss_elements: List[Dict] = []
+    sse_elements: List[Dict] = []
     i = 0
     while i < len(rnums):
-        t = ss_type.get(rnums[i], "C")
+        t = sse_type.get(rnums[i], "C")
         if t == "C":
             i += 1
             continue
         j = i + 1
         while (j < len(rnums) and
-               ss_type.get(rnums[j], "C") == t and
+               sse_type.get(rnums[j], "C") == t and
                rnums[j] - rnums[j - 1] <= 2):
             j += 1
         r1  = rnums[i]
         r2  = rnums[j - 1]
         ch  = chain_filter or "A"
         if t == "H" and (r2 - r1 + 1) >= min_helix:
-            ss_elements.append({
+            sse_elements.append({
                 "type": "helix", "chain": ch,
                 "res_start": r1, "res_end": r2,
                 "name": f"Helix_{ch}_{r1}_{r2}",
                 "auto_detected": True,
             })
         elif t == "E" and (r2 - r1 + 1) >= min_sheet:
-            ss_elements.append({
+            sse_elements.append({
                 "type": "sheet", "chain": ch,
                 "res_start": r1, "res_end": r2,
                 "name": f"Sheet_S1_{ch}_{r1}",
@@ -1559,12 +1608,12 @@ def detect_ss_phipsi(
     if _n_fail_phipsi > 0:
         import warnings as _w
         _w.warn(
-            f"detect_ss_phipsi: {_n_fail_phipsi} von {len(rnums)} Residuen "
+            f"detect_sse_phipsi: {_n_fail_phipsi} von {len(rnums)} Residuen "
             f"ohne berechenbare Dihedralwinkel (phi or psi None) -- "
             f"als Coil klassifiziert. Geometrie the PDB pruefen.",
             UserWarning, stacklevel=2)
 
-    return ss_elements
+    return sse_elements
 
 
 __version__ = "1.4"  # modenanalyse v1.4

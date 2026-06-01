@@ -34,7 +34,7 @@ Output files
     Main analysis: mode_analysis, group amplitudes, Fe-ligand amplitudes,
     His H-N, equilibrium geometry, SCSD, reorganization energies,
     B-factors, info.
-``_analysis_SS.xlsx``
+``_analysis_SSE.xlsx``
     Secondary-structure amplitudes (if PDB available).
 ``_analysis_Embeddings.xlsx``
     UMAP coordinates + HDBSCAN clusters + C-alpha amplitudes.
@@ -42,8 +42,8 @@ Output files
     Core analysis on uniform frequency grid (step = interp_step).
     Symmetric boundary treatment: context modes left and right of the
     window.
-``_analysis_SS_interp{step}.xlsx``
-    Secondary-structure amplitudes interpolated (if PDB and analyze_ss=True).
+``_analysis_SSE_interp{step}.xlsx``
+    Secondary-structure amplitudes interpolated (if PDB and analyze_sse=True).
 ``_embedding_*.png``
     Embedding figure (UMAP).
 ``_REPORT.txt``
@@ -79,25 +79,25 @@ from .logio import (
 from .geometry import (
     find_cluster, find_all_clusters, cluster_normal, compute_dist_ref,
     kabsch_align, find_coordinating_residues,
-    build_ss_center_map, get_calpha_centers,
-    detect_ss_dssp, detect_ss_phipsi,
+    build_sse_center_map, build_sse_ca_center_map, get_calpha_centers,
+    detect_sse_dssp, detect_sse_phipsi,
     CoordInfo,
 )
 from .core import (
-    analyze_mode_with_fallback, analyze_all_ss,
+    analyze_mode_with_fallback, analyze_all_sse,
     compute_scsd_for_mode_full, _get_scsd_model,
     reset_warning_state,
 )
 from .embedding import (
-    build_feature_matrix, compute_embeddings, compute_ss_umap_cluster,
+    build_feature_matrix, compute_embeddings, compute_sse_umap_cluster,
     compute_ca_umap_cluster,
 )
 from .export import (
 
     ExportPayload, export_all,
     # Einzelfunktionen bleiben importiert for Abwaertskompatibilitaet
-    export_main_excel, export_ss_excel, export_embedding_excel,
-    export_interpolated_excel, export_ss_interp_excel,
+    export_main_excel, export_sse_excel, export_embedding_excel,
+    export_interpolated_excel, export_sse_interp_excel,
     export_embedding_plots,
 )
 
@@ -164,7 +164,7 @@ def _make_synthetic_zero_mode(freq_cm1: float,
     dict
         A result dict shaped exactly like a real mode but with all
         observables zero. The ``_evg``/``_centers``/``_c2l`` keys are
-        omitted so the B-factor accumulator and SS-analysis loop in the
+        omitted so the B-factor accumulator and SSE-analysis loop in the
         runner skip this entry (both check for ``r.get("_evg")``).
     """
     # Zero per-group/per-ligand/per-his_hn dicts (same keys as a real
@@ -217,9 +217,9 @@ def _make_synthetic_zero_mode(freq_cm1: float,
         "pts_ref":   None,
         "pts_dist":  None,
         # NOTE: NO "_evg" / "_centers" / "_c2l" keys. The B-factor and
-        # SS-analysis loops in the runner explicitly check
+        # SSE-analysis loops in the runner explicitly check
         # `r.get("_evg") is not None` and skip otherwise -- so this
-        # synthetic mode contributes 0 to B-factors and 0 to SS by
+        # synthetic mode contributes 0 to B-factors and 0 to SSE by
         # construction, without us having to fabricate eigenvectors.
     }
 
@@ -529,8 +529,9 @@ def _run_analysis_single(cfg: "Config") -> int:
     pdb_data  = None
     coord_info = CoordInfo(ligands=[], group_map={}, pdb_to_center={},
                             his_ligand_labels=[])
-    ss_elements: list = []
-    ss_center_map: dict = {}
+    sse_elements: list = []
+    sse_center_map: dict = {}
+    sse_ca_center_map: dict = {}
 
     if cfg.pdb_file and os.path.isfile(cfg.pdb_file):
         pdb_data = parse_pdb(cfg.pdb_file, chain_filter=cfg.pdb_chain)
@@ -575,66 +576,68 @@ def _run_analysis_single(cfg: "Config") -> int:
         }
 
         # Secondary structure
-        if cfg.analyze_ss:
-            ss_elements = pdb_data["ss_elements"]
-            ch = cfg.ss_chain or ""
-            ss_elements = [e for e in ss_elements
+        if cfg.analyze_sse:
+            sse_elements = pdb_data["sse_elements"]
+            ch = cfg.sse_chain or ""
+            sse_elements = [e for e in sse_elements
                            if not ch or e.get("chain", "") == ch]
 
             # Fallback 1: DSSP (H-Brücken, Kabsch & Sander 1983 [11])
             # Fallback 2: phi/psi-Winkel (nur if DSSP leer)
-            _ss_auto   = False
-            _ss_method = ""
-            if not ss_elements:
-                ss_elements = detect_ss_dssp(
+            _sse_auto   = False
+            _sse_method = ""
+            if not sse_elements:
+                sse_elements = detect_sse_dssp(
                     pdb_data, chain_filter=ch or "A")
-                if ss_elements:
-                    _ss_auto   = True
-                    _ss_method = "DSSP (H-bonds)"
+                if sse_elements:
+                    _sse_auto   = True
+                    _sse_method = "DSSP (H-bonds)"
                 else:
                     import warnings as _w_phipsi
                     with _w_phipsi.catch_warnings(record=True) as _phipsi_warns:
                         _w_phipsi.simplefilter("always")
-                        ss_elements = detect_ss_phipsi(
+                        sse_elements = detect_sse_phipsi(
                             pdb_data, chain_filter=ch or "A")
                     for _pw in _phipsi_warns:
-                        runlog.warn(f"SS phi/psi: {_pw.message}")
-                    if ss_elements:
-                        _ss_auto   = True
-                        _ss_method = "phi/psi-Winkel"
+                        runlog.warn(f"SSE phi/psi: {_pw.message}")
+                    if sse_elements:
+                        _sse_auto   = True
+                        _sse_method = "phi/psi-Winkel"
 
-                if _ss_auto:
+                if _sse_auto:
                     runlog.warn(
                         f"PDB contains no HELIX/SHEET records. "
-                        f"{len(ss_elements)} SS elements automatically "
-                        f"per {_ss_method} erkannt "
+                        f"{len(sse_elements)} SSE elements automatically "
+                        f"per {_sse_method} erkannt "
                         f"(Kabsch & Sander 1983 [11]). "
                         f"Ergebnisse können von HELIX/SHEET-basierten "
                         f"valuesn leicht abweichen.")
-                    print(f"    [INFO] SS auto-detected ({_ss_method}): "
-                          f"{len(ss_elements)} elements")
+                    print(f"    [INFO] SSE auto-detected ({_sse_method}): "
+                          f"{len(sse_elements)} elements")
                 else:
                     runlog.warn(
                         "PDB contains no HELIX/SHEET records. "
                         "Weder DSSP still phi/psi-Erkennung fanden "
-                        "SS elements. SS-Analyse skipped.")
-                    print("    [WARNING] No SS elements detected "
+                        "SSE elements. SSE-Analyse skipped.")
+                    print("    [WARNING] No SSE elements detected "
                           "(no HELIX/SHEET, no DSSP, no phi/psi).")
 
-            if ss_elements:
-                ss_center_map = build_ss_center_map(
-                    ss_elements, pdb_data, coord_info.pdb_to_center, ch)
-                n_ss = sum(len(v) for v in ss_center_map.values())
-                src_lbl = (f"auto, {_ss_method} [11]"
-                           if _ss_auto else "HELIX/SHEET")
-                print(f"    {len(ss_elements)} SS elements "
-                      f"[{src_lbl}] ({n_ss} atoms assigned)")
-                if n_ss == 0:
+            if sse_elements:
+                sse_center_map = build_sse_center_map(
+                    sse_elements, pdb_data, coord_info.pdb_to_center, ch)
+                sse_ca_center_map = build_sse_ca_center_map(
+                    sse_elements, pdb_data, coord_info.pdb_to_center, ch)
+                n_sse = sum(len(v) for v in sse_center_map.values())
+                src_lbl = (f"auto, {_sse_method} [11]"
+                           if _sse_auto else "HELIX/SHEET")
+                print(f"    {len(sse_elements)} SSE elements "
+                      f"[{src_lbl}] ({n_sse} atoms assigned)")
+                if n_sse == 0:
                     runlog.warn(
-                        "SS analysis: SS elements detected, but 0 atoms "
+                        "SSE analysis: SSE elements detected, but 0 atoms "
                         "assigned (pdb_to_center empty). "
-                        "SS-Export skipped.")
-                    ss_center_map = {}
+                        "SSE-Export skipped.")
+                    sse_center_map = {}
     else:
         if cfg.pdb_file:
             runlog.warn(f"PDB not found: {cfg.pdb_file}")
@@ -920,17 +923,18 @@ def _run_analysis_single(cfg: "Config") -> int:
             r.pop("pts_ref", None); r.pop("pts_dist", None)
 
             # Secondary structure (Bugfix B2: korrekte Indizierung via c2l)
-            if ss_elements and ss_center_map and r.get("_evg") is not None:
+            if sse_elements and sse_center_map and r.get("_evg") is not None:
                 evg_r = r["_evg"]; c2l_r = r.get("_c2l",{})
                 try:
-                    r["ss"] = analyze_all_ss(
-                        evg_r, c2l_r, ss_center_map,
-                        atoms, idx_map, ss_elements, r["u_rms"],
-                        sigma_eigvec=cfg.sigma_eigvec)
-                except Exception as _e_ss:
-                    r["ss"] = {}
-                    runlog.warn(f"SS Mode {mn} @ {freq:.2f} cm-1: "
-                                f"{type(_e_ss).__name__}: {_e_ss}")
+                    r["sse"] = analyze_all_sse(
+                        evg_r, c2l_r, sse_center_map,
+                        atoms, idx_map, sse_elements, r["u_rms"],
+                        sigma_eigvec=cfg.sigma_eigvec,
+                        sse_axis_center_map=sse_ca_center_map)
+                except Exception as _e_sse:
+                    r["sse"] = {}
+                    runlog.warn(f"SSE Mode {mn} @ {freq:.2f} cm-1: "
+                                f"{type(_e_sse).__name__}: {_e_sse}")
 
             # Debye-Waller-Faktor akkumulieren (vor _evg-Pop)
             # Saves also pro-Mode-contributions for the spaetere
@@ -1298,14 +1302,14 @@ def _run_analysis_single(cfg: "Config") -> int:
                 }
             runlog.cluster_summary = _cl_sum_g
 
-        # SS-UMAP over alle
-        ss_umap_g = None
-        if ss_elements and any(r.get("ss") for r in results):
+        # SSE-UMAP over alle
+        sse_umap_g = None
+        if sse_elements and any(r.get("sse") for r in results):
             try:
-                ss_umap_g = compute_ss_umap_cluster(
-                    results, ss_elements, runlog=runlog)
+                sse_umap_g = compute_sse_umap_cluster(
+                    results, sse_elements, runlog=runlog)
             except Exception as _eg:
-                runlog.warn(f"SS-UMAP Gesamt: {_eg}")
+                runlog.warn(f"SSE-UMAP Gesamt: {_eg}")
 
         # Ca-Daten over alle
         ca_data_g = _build_ca_data(ca_pre, ca_amps_by_mode, results) \
@@ -1337,7 +1341,7 @@ def _run_analysis_single(cfg: "Config") -> int:
             embed_feat_names     = feat_e_g,
             cluster_data         = cluster_data_g,
             ca_data              = ca_data_g,
-            ss_umap_data         = ss_umap_g,
+            sse_umap_data         = sse_umap_g,
             ca_umap_data         = ca_umap_g,
         )
         print(f"    Exporting overall analysis...")
@@ -1423,14 +1427,14 @@ def _run_analysis_single(cfg: "Config") -> int:
                     }
                 runlog.cluster_summary = _cl_sum_w
 
-            # SS-UMAP for dieses Fenster
-            ss_umap_w = None
-            if ss_elements and any(r.get("ss") for r in win_results):
+            # SSE-UMAP for dieses Fenster
+            sse_umap_w = None
+            if sse_elements and any(r.get("sse") for r in win_results):
                 try:
-                    ss_umap_w = compute_ss_umap_cluster(
-                        win_results, ss_elements, runlog=runlog)
+                    sse_umap_w = compute_sse_umap_cluster(
+                        win_results, sse_elements, runlog=runlog)
                 except Exception as _ew:
-                    runlog.warn(f"SS-UMAP Window {win_label}: {_ew}")
+                    runlog.warn(f"SSE-UMAP Window {win_label}: {_ew}")
 
             # Ca-UMAP for dieses Fenster (new in v1.0.3)
             ca_umap_w = None
@@ -1459,7 +1463,7 @@ def _run_analysis_single(cfg: "Config") -> int:
                 embed_feat_names     = feat_e_w,
                 cluster_data         = cluster_data_w,
                 ca_data              = ca_data_w,
-                ss_umap_data         = ss_umap_w,
+                sse_umap_data         = sse_umap_w,
                 ca_umap_data         = ca_umap_w,
             )
             print(f"    Export...")
@@ -1494,23 +1498,23 @@ def _run_analysis_single(cfg: "Config") -> int:
                 }
             runlog.cluster_summary = _cl_sum
 
-        ss_umap_data = None
-        if ss_elements and any(r.get("ss") for r in results):
-            print("  SS-UMAP-Clustering...")
+        sse_umap_data = None
+        if sse_elements and any(r.get("sse") for r in results):
+            print("  SSE-UMAP-Clustering...")
             try:
-                ss_umap_data = compute_ss_umap_cluster(
-                    results, ss_elements, runlog=runlog)
-                if ss_umap_data and ss_umap_data[0] is not None:
-                    _ss_labels = ss_umap_data[1]
+                sse_umap_data = compute_sse_umap_cluster(
+                    results, sse_elements, runlog=runlog)
+                if sse_umap_data and sse_umap_data[0] is not None:
+                    _sse_labels = sse_umap_data[1]
                     import numpy as _np2
-                    _ss_arr = _np2.array([l for l in _ss_labels if l != -99])
-                    runlog.cluster_summary["SS_UMAP"] = {
-                        "n_clusters": len(set(_ss_arr) - {-1}) if len(_ss_arr) else 0,
-                        "n_noise":    int((_ss_arr == -1).sum()) if len(_ss_arr) else 0,
-                        "n_total":    len(_ss_arr),
+                    _sse_arr = _np2.array([l for l in _sse_labels if l != -99])
+                    runlog.cluster_summary["SSE_UMAP"] = {
+                        "n_clusters": len(set(_sse_arr) - {-1}) if len(_sse_arr) else 0,
+                        "n_noise":    int((_sse_arr == -1).sum()) if len(_sse_arr) else 0,
+                        "n_total":    len(_sse_arr),
                     }
             except Exception as e:
-                runlog.warn(f"SS-UMAP failed: {e}")
+                runlog.warn(f"SSE-UMAP failed: {e}")
 
         # Ca-UMAP-Clustering (new in v1.0.3)
         ca_umap_data = None
@@ -1549,7 +1553,7 @@ def _run_analysis_single(cfg: "Config") -> int:
             embed_feat_names     = feat_e,
             cluster_data         = cluster_data,
             ca_data              = ca_data,
-            ss_umap_data         = ss_umap_data,
+            sse_umap_data         = sse_umap_data,
             ca_umap_data         = ca_umap_data,
         )
         export_all(_payload)

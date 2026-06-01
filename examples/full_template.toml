@@ -115,8 +115,8 @@ significance_threshold_high = 3.0
 # -----------------------------------------------------------------------------
 
 analyze_scsd  = true       # SCSD analysis (D2h symmetry decomposition; requires scsdpy package)
-analyze_ss    = true       # Secondary-structure analysis (HELIX/SHEET from PDB)
-ss_chain      = ""         # Restrict to which PDB chain (empty = pdb_chain)
+analyze_sse    = true       # Secondary-structure analysis (HELIX/SHEET from PDB)
+sse_chain      = ""         # Restrict to which PDB chain (empty = pdb_chain)
 
 # -----------------------------------------------------------------------------
 [pcet]

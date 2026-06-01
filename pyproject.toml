@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name        = "modenanalyse_2fe2s"
-version     = "1.0.4"
+version     = "1.1.0"
 description = "Mode-resolved bonding reorganization analysis for [2Fe-2S] iron-sulfur clusters from Gaussian-16 and ORCA-6 frequency calculations"
 readme      = "README.md"
 requires-python = ">=3.11"  # tomllib (config.from_toml)

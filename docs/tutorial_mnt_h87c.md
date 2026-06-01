@@ -78,10 +78,10 @@ mnt_h87c_results/
 └── 0-800_cm-1/
     ├── mNT_H87C_qmmm-orca_B3LYP_REPORT.txt              # human-readable
     ├── mNT_H87C_qmmm-orca_B3LYP_analysis.xlsx           # 16 sheets
-    ├── mNT_H87C_qmmm-orca_B3LYP_analysis_SS.xlsx
+    ├── mNT_H87C_qmmm-orca_B3LYP_analysis_SSE.xlsx
     ├── mNT_H87C_qmmm-orca_B3LYP_analysis_Embeddings.xlsx
     ├── mNT_H87C_qmmm-orca_B3LYP_analysis_interp0.05.xlsx
-    ├── mNT_H87C_qmmm-orca_B3LYP_analysis_SS_interp0.05.xlsx
+    ├── mNT_H87C_qmmm-orca_B3LYP_analysis_SSE_interp0.05.xlsx
     └── mNT_H87C_qmmm-orca_B3LYP_embedding_UMAP.png
 ```
 

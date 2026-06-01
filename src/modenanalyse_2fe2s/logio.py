@@ -47,7 +47,6 @@ from __future__ import annotations
 import os
 import re
 import time
-from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -1321,7 +1320,7 @@ def parse_pdb(pdb_path: str, chain_filter: str = "") -> Dict:
         * ``hetatm``   - HETATM-Records without H
         * ``hetatm_h`` - HETATM-Records with H
         * ``all_h``    - ATOM + HETATM with H (fuer Kabsch + Koordination)
-        * ``ss_elements`` - HELIX- and SHEET-Records als List of Dicts
+        * ``sse_elements`` - HELIX- and SHEET-Records als List of Dicts
 
     Notes
     -----
@@ -1335,7 +1334,7 @@ def parse_pdb(pdb_path: str, chain_filter: str = "") -> Dict:
     atoms_h:  List[Dict] = []
     hetatm:   List[Dict] = []
     hetatm_h: List[Dict] = []
-    ss_elems: List[Dict] = []
+    sse_elems: List[Dict] = []
 
     in_model   = False
     model_done = False
@@ -1364,7 +1363,7 @@ def parse_pdb(pdb_path: str, chain_filter: str = "") -> Dict:
                     r1   = int(line[21:25])
                     r2   = int(line[33:37])
                     if r2 - r1 + 1 >= 4:
-                        ss_elems.append({
+                        sse_elems.append({
                             "type": "helix", "chain": ch,
                             "res_start": r1, "res_end": r2,
                             "name": f"Helix_{ch}_{r1}_{r2}"})
@@ -1378,7 +1377,7 @@ def parse_pdb(pdb_path: str, chain_filter: str = "") -> Dict:
                     r2   = int(line[33:37])
                     sid  = line[11:14].strip()
                     if r2 - r1 + 1 >= 4:
-                        ss_elems.append({
+                        sse_elems.append({
                             "type": "sheet", "chain": ch,
                             "res_start": r1, "res_end": r2,
                             "name": f"Sheet_{sid}_{ch}_{r1}"})
@@ -1459,7 +1458,7 @@ def parse_pdb(pdb_path: str, chain_filter: str = "") -> Dict:
         "hetatm":      hetatm,
         "hetatm_h":    hetatm_h,
         "all_h":       all_h,
-        "ss_elements": ss_elems,
+        "sse_elements": sse_elems,
     }
 
 __version__ = "1.4"  # modenanalyse v1.4

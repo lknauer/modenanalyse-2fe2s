@@ -16,7 +16,7 @@ compute_embeddings
     Computes PCA, t-SNE and UMAP; fuehrt HDBSCAN-Clustering durch.
 characterize_clusters
     Charakterisiert HDBSCAN-Cluster with Z-Scores and Fisher-F.
-compute_ss_umap_cluster
+compute_sse_umap_cluster
     UMAP clustering of secondary-structure amplitudes.
 
 Bugfixes (gegenvia Vorversion)
@@ -29,7 +29,7 @@ scipy-Fix
 ---------
 ``ConstantInputWarning`` von ``scipy.stats.f_oneway`` is in
 ``characterize_clusters`` automatically unterdrueckt (tritt auf, wenn
-ein SS-Feature over alle modes konstant ist).
+ein SSE-Feature over alle modes konstant ist).
 """
 from __future__ import annotations
 import warnings
@@ -37,7 +37,6 @@ from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
 
-from .config  import Config
 from .logio      import RunLog
 from .geometry import CoordInfo
 
@@ -47,6 +46,7 @@ from .geometry import CoordInfo
 # ===========================================================================
 
 from .core import SCORE_KEYS as _SCORE_KEYS
+from .core import SSE_UMAP_METRICS as _SSE_UMAP_METRICS
 
 
 
@@ -404,7 +404,7 @@ def characterize_clusters(
     -----
     scipy-Fix: ``ConstantInputWarning`` von ``f_oneway`` is unterdrueckt.
     Sie tritt on if ein Feature over alle modes a Clusters
-    konstant is (e.g. Null-Amplituden for bestimmte SS-elements).
+    konstant is (e.g. Null-Amplituden for bestimmte SSE-elements).
     """
     try:
         from scipy.stats import f_oneway
@@ -451,7 +451,7 @@ def characterize_clusters(
         top_disc = [(feat_names[fi], float(z_sc[fi]), float(disc[fi]))
                     for fi in top_fi]
 
-        # mask hat Länge len(labels) - for SS-UMAP < len(results)
+        # mask hat Länge len(labels) - for SSE-UMAP < len(results)
         # Schneide range on len(mask) um IndexError to vermeiden
         freqs_k = np.array([results[i]["freq"]
                              for i in range(min(len(results), len(mask)))
@@ -496,11 +496,11 @@ def characterize_clusters(
 
 
 # ===========================================================================
-# SS-UMAP-Clustering
+# SSE-UMAP-Clustering
 # ===========================================================================
 
-def compute_ss_umap_cluster(results:     List[Dict],
-                              ss_elements: List[Dict],
+def compute_sse_umap_cluster(results:     List[Dict],
+                              sse_elements: List[Dict],
                               runlog=None,
                               ) -> tuple:
     """UMAP clustering of secondary-structure amplitudes.
@@ -508,54 +508,57 @@ def compute_ss_umap_cluster(results:     List[Dict],
     Parameters
     ----------
     results : list of dict
-        Modenanalyse-Ergebnisse; required ``results[i]["ss"]``.
-    ss_elements : list of dict
-        SS-element-Records from ``parse_pdb``.
+        Modenanalyse-Ergebnisse; required ``results[i]["sse"]``.
+    sse_elements : list of dict
+        SSE-element-Records from ``parse_pdb``.
 
     Returns
     -------
     Z2d : ndarray of shape (n_valid, 2) or None
-        2D-UMAP-Koordinaten the modes with SS-Daten.
+        2D-UMAP-Koordinaten the modes with SSE-Daten.
     full_labels : ndarray of shape (n_modes,) or None
-        HDBSCAN-Labels for alle modes (``-99`` = no SS-Datum).
+        HDBSCAN-Labels for alle modes (``-99`` = no SSE-Datum).
     feat_names : list of str
-        Feature-Namen the SS-Amplituden-Matrix.
+        Feature-Namen the SSE-Amplituden-Matrix.
     X_norm : ndarray or None
         Normierte Feature-Matrix.
     valid_idx : list of int
-        Indizes the modes with SS-Daten in ``results``.
+        Indizes the modes with SSE-Daten in ``results``.
     cluster_chars : dict
         Cluster-Charakterisierung (Z-Scores, Fisher-F, Top-Moden)
         from ``characterize_clusters``.
     """
-    if not ss_elements:
+    if not sse_elements:
         return None, None, [], None, []
 
-    ss_names = [e["name"] for e in ss_elements]
-    metrics  = ["amplitude_mean","amplitude_max","com_amplitude",
-                "bending_std","bending_mean","stretching",
-                "axial_amplitude","tilting_angle","internal_amplitude"]
+    sse_names = [e["name"] for e in sse_elements]
+    # v1.0.5: metric names come from the single source of truth in core
+    # (SSE_UMAP_METRICS), so the consumer cannot drift from the keys produced
+    # by analyze_sse_element. Previously this list was hard-coded here and two
+    # entries ("bending_std"/"bending_mean") never matched the produced keys
+    # ("lateral_std"/"lateral_amplitude"), silently zeroing those features.
+    metrics  = list(_SSE_UMAP_METRICS)
 
     rows:       List[List[float]] = []
     valid_idx:  List[int]          = []
     for i, r in enumerate(results):
-        ss = r.get("ss", {})
-        if not ss: continue
-        row = [float(ss.get(sn, {}).get(m, 0.))
-               for sn in ss_names for m in metrics]
+        sse = r.get("sse", {})
+        if not sse: continue
+        row = [float(sse.get(sn, {}).get(m, 0.))
+               for sn in sse_names for m in metrics]
         rows.append(row)
         valid_idx.append(i)
 
     if len(rows) < 5:
-        msg = (f"SS-UMAP: only {len(rows)} modes with SS data "
-               f"(min: 5). SS-UMAP skipped.")
+        msg = (f"SSE-UMAP: only {len(rows)} modes with SSE data "
+               f"(min: 5). SSE-UMAP skipped.")
         if runlog is not None:
             runlog.warn(msg)
         else:
             print(f"    {msg}")
         return None, None, [], None, []
 
-    feat_names = [f"{sn}_{m}" for sn in ss_names for m in metrics]
+    feat_names = [f"{sn}_{m}" for sn in sse_names for m in metrics]
     X = np.array(rows, dtype=float)
     mu = X.mean(0, keepdims=True)
     sg = X.std(0, keepdims=True); sg[sg < 1e-12] = 1.
@@ -567,7 +570,7 @@ def compute_ss_umap_cluster(results:     List[Dict],
         Z2d  = UMAP(n_components=2, n_neighbors=nn,
                     random_state=42, low_memory=False).fit_transform(X_norm)
     except Exception as e_u:
-        msg = f"SS-UMAP: UMAP fehlgeschlagen, Fallback on PCA ({type(e_u).__name__}: {e_u})"
+        msg = f"SSE-UMAP: UMAP fehlgeschlagen, Fallback on PCA ({type(e_u).__name__}: {e_u})"
         if runlog is not None:
             runlog.warn(msg)
         else:
@@ -579,12 +582,12 @@ def compute_ss_umap_cluster(results:     List[Dict],
     labels = _hdbscan_on(Z2d, mcs)
     n_cl   = len(set(labels) - {-1})
     n_ns   = int((labels == -1).sum())
-    _ss_umap_msg = (f"SS-UMAP: {n_cl} clusters, {n_ns} noise, "
+    _sse_umap_msg = (f"SSE-UMAP: {n_cl} clusters, {n_ns} noise, "
                     f"mcs={mcs}, n_modes={len(rows)}")
     if runlog is not None:
-        runlog.info(_ss_umap_msg)
+        runlog.info(_sse_umap_msg)
     else:
-        print(f"    {_ss_umap_msg}")
+        print(f"    {_sse_umap_msg}")
 
     full_labels = np.full(len(results), -99, dtype=int)
     for li, gi in enumerate(valid_idx):
@@ -593,8 +596,8 @@ def compute_ss_umap_cluster(results:     List[Dict],
     # Cluster-Charakterisierung (Z-Scores + F-values + Top-Moden)
     # characterize_clusters gibt (chars_dict, cluster_ids)-Tuple zurueck
     cluster_chars: dict = {}
-    _cids_ss = sorted(k for k in set(labels) if k >= 0)
-    if _cids_ss and X_norm is not None:
+    _cids_sse = sorted(k for k in set(labels) if k >= 0)
+    if _cids_sse and X_norm is not None:
         cluster_chars, _ = characterize_clusters(
             Z2d, labels, X_norm, feat_names, results)
 
@@ -615,7 +618,7 @@ def compute_ca_umap_cluster(results: List[Dict],
     dimension is the C-alpha amplitude of one residue. Modes with similar
     spatial distribution of backbone motion (e.g. localized to the same
     helix or both delocalized across the protein) cluster together. This
-    is complementary to the SS-UMAP, which embeds modes via per-SS-element
+    is complementary to the SSE-UMAP, which embeds modes via per-SSE-element
     aggregated features, and to the global UMAP, which uses Marcus-Hush
     reorganization features.
 

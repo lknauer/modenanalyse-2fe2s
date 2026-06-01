@@ -1,6 +1,6 @@
 % =========================================================================
 % modenanalyse_2fe2s -- Handbuch und theoretische Dokumentation
-% Version 1.0.1  (Mai 2026)
+% Version 1.1.0  (Juni 2026)
 %
 % Lukas Knauer, AG Schuenemann, RPTU Kaiserslautern-Landau
 % =========================================================================
@@ -209,7 +209,7 @@
   \begin{center}
     \vspace*{2cm}
     {\Huge\bfseries\color{accent} modenanalyse\_2fe2s}\\[0.4cm]
-    {\large Version 1.0.1}\\[2cm]
+    {\large Version 1.1.0}\\[2cm]
 
     \rule{\textwidth}{0.4pt}\\[0.3cm]
     {\LARGE\bfseries Handbuch und theoretische Dokumentation}\\[0.3cm]
@@ -350,7 +350,7 @@ spezialisierten Werkzeugen separat berechnen.
 
 \begin{infobox}
 \textbf{Changelog-H\"ohepunkte seit v1.0.0.}
-Diese Manual-Ausgabe beschreibt das Paket im Stand v1.0.4
+Diese Manual-Ausgabe beschreibt das Paket im Stand v1.1.0
 (vollst\"andige Liste in \texttt{CHANGELOG.md}). Inhaltliche
 \"Anderungen seit v1.0.0:
 \begin{itemize}\setlength{\itemsep}{0pt}
@@ -363,17 +363,35 @@ Diese Manual-Ausgabe beschreibt das Paket im Stand v1.0.4
   \item \textbf{v1.0.3}: neue Diagnose-Ausgaben -- das
         \texttt{Coordination}-Blatt dokumentiert die Ligand- und
         Gruppen-Atomzuordnung (\S\ref{app:wb-main-coordination});
-        zwei zus\"atzliche UMAP-Einbettungen (SS-UMAP und Ca-UMAP)
+        zwei zus\"atzliche UMAP-Einbettungen (SSE-UMAP und Ca-UMAP)
         zielen auf Protein-Dom\"anenmoden bzw.\ r\"aumlich
         lokalisierte Moden (\S\ref{app:wb-embed-ssumap},
         \S\ref{app:wb-embed-caumap}).
   \item \textbf{v1.0.4}: auditgetriebene Korrekturen der
         Unsicherheits-Fortpflanzung (\S\ref{sec:migration-v104}).
         Werte unver\"andert; die \texttt{s\_*}-Spalten f\"ur
-        N-H-Stretches, SS-Element-Amplituden und SCSD-Amplituden
+        N-H-Stretches, SSE-Element-Amplituden und SCSD-Amplituden
         \"andern ihre Gr\"o\ss enordnung. Halb-offene
         Fenstergrenzen und defensive Warnmeldungen sind ebenfalls
         Teil dieses Release.
+  \item \textbf{v1.0.5}: physikalische Korrekturen der
+        Sekund\"arstrukturelement-Analyse -- die SSE-UMAP-Features
+        \texttt{bending\_*} (stets Null) wurden durch die tats\"achlichen
+        \texttt{lateral\_*}-Schl\"ussel ersetzt; \texttt{tilting\_angle}
+        ist jetzt eine echte Starrk\"orper-Kippung; \texttt{com\_amplitude}
+        (je Element und f\"ur den Clusterkern) ist massengewichtet; und die
+        SSE-Hauptachse stammt aus dem C$\alpha$-R\"uckgrat. Die SSE-Bl\"atter
+        und ihr UMAP \"andern sich, betroffene Systeme also einmal neu
+        ausf\"uhren; der SSE-UMAP-Featuresatz wurde zudem auf eine
+        dekorrelierte F\"unf-Metrik-Auswahl reduziert.
+  \item \textbf{v1.1.0}: die Abk\"urzung \emph{SS} (Sekund\"arstruktur)
+        wurde projektweit zu \emph{SSE} umbenannt -- Sheet-Namen, der
+        Ausgabedateiname (\texttt{*\_analysis\_SSE.xlsx}),
+        Konfigurationsschl\"ussel und Funktionsnamen. Das behebt die
+        Mehrdeutigkeit mit Disulfid (S--S) und entspricht der \"ublichen
+        Bezeichnung \emph{secondary structure element}. Alte
+        TOML-Schl\"ussel (\texttt{analyze\_ss}, \texttt{ss\_chain}) werden
+        weiterhin akzeptiert.
 \end{itemize}
 \end{infobox}
 
@@ -569,7 +587,7 @@ mit $\urms \approx 0{,}05$~\AA{}:
   \item N-H-Stretch (\texttt{analyze\_his\_hn},
         \texttt{include\_hn\_vibration}) folgt derselben Konvention:
         $\sigma_\text{hn} = \sigma_e^\text{therm}\sqrt{2}$.
-  \item SS-Element-Amplitude:
+  \item SSE-Element-Amplitude:
         $\sigma_\text{amp} = \sigma_e^\text{therm}\sqrt{N_\text{atoms}}$,
         wobei das $\sqrt{N}$-Wachstum aus der Mittelung \"uber
         $N_\text{atoms}$ im Sekund\"arstruktur-Element kommt.
@@ -584,7 +602,7 @@ mit $\urms \approx 0{,}05$~\AA{}:
 \paragraph{\"Anderung in v1.0.4.} Drei dieser Sigma-Propagationen
 waren zuvor inkonsistent implementiert
 (\S\ref{sec:migration-v104}): dem N-H-Stretch fehlte die thermische
-Skalierung, das SS-Element verwendete eine fest verdrahtete Konstante
+Skalierung, das SSE-Element verwendete eine fest verdrahtete Konstante
 statt \texttt{cfg.sigma\_eigvec}, und SCSD verwendete fest verdrahtete
 Referenzkonstanten statt \texttt{cfg.sigma\_coord} und
 \texttt{cfg.sigma\_eigvec}. Mit v1.0.4 respektieren alle Sigmas
@@ -605,7 +623,7 @@ Signifikanz-Schlussfolgerungen diesen Abschnitt lesen.
 \paragraph{Was sich nicht ge\"andert hat.} Alle geometrischen und
 energetischen Observablen -- \texttt{stretch}, \texttt{bend},
 \texttt{kern\_d}, \texttt{lambda\_X}, SCSD-Amplituden,
-\texttt{hn\_stretch}, SS-Element \texttt{amplitude\_mean},
+\texttt{hn\_stretch}, SSE-Element \texttt{amplitude\_mean},
 Einbettungs-Koordinaten -- liefern \emph{numerisch identische} Werte
 \"uber v1.0.2, v1.0.3 und v1.0.4 f\"ur dasselbe Eingabe-Log.
 Keine physikalische Interpretation bestehender Werte wird
@@ -623,12 +641,12 @@ invalidiert.
         korrekt als signifikante PCET-Signale identifizierbar.
   \item \texttt{s\_amplitude\_mean} / \texttt{s\_axial\_amplitude} /
         \texttt{s\_tilting\_angle} \ldots\ in
-        \texttt{analyze\_ss\_element}: vor v1.0.4 wurde eine fest
+        \texttt{analyze\_sse\_element}: vor v1.0.4 wurde eine fest
         verdrahtete Konstante $1\cdot 10^{-4}$ statt
         \texttt{cfg.sigma\_eigvec} verwendet. Mit dem Standard
         $\sigma_e = 5\cdot 10^{-4}$ sind die neuen Sigmas
         etwa \textbf{5\,$\times$ gr\"o\ss er}. Reklassifikation:
-        SS-Element-Eintr\"age, die unter dem alten Code als
+        SSE-Element-Eintr\"age, die unter dem alten Code als
         ``signifikant'' markiert waren, k\"onnen nun als
         ``marginal'' erscheinen.
   \item \texttt{s\_SCSD\_*}: vor v1.0.4 wurden fest verdrahtete
@@ -723,7 +741,7 @@ numerische Ausgaben. Vollst\"andige Beschreibungen sind im Supplement
 vorhandene TOML-Konfigurationen unter v1.0.4 erneut aus und
 vergleichen Sie die \texttt{s\_*}-Spalten von
 \texttt{Fe\_S\_Cys.xlsx}, \texttt{His\_HN.xlsx}, \texttt{SCSD.xlsx}
-und die SS-Element-Bl\"atter. Die Werte sind identisch; nur Sigmas
+und die SSE-Element-Bl\"atter. Die Werte sind identisch; nur Sigmas
 und die Signifikanz-F\"arbung \"andern sich.
 
 % -------------------------------------------------------------------------
@@ -1517,8 +1535,8 @@ absoluten Wertebereichs Vorrang.
 
   \item \emph{Sekund\"arstruktur} (HELIX/SHEET-Anteile): wird im
         \emph{separaten} Sekund\"arstruktur-UMAP behandelt
-        (Sheet \texttt{SS\_UMAP\_Cluster}). Mode-UMAP und
-        SS-UMAP sind konzeptionell unterschiedliche Auswertungen.
+        (Sheet \texttt{SSE\_UMAP\_Cluster}). Mode-UMAP und
+        SSE-UMAP sind konzeptionell unterschiedliche Auswertungen.
 \end{itemize}
 
 \subsubsection*{HDBSCAN: dichtebasierte Cluster-Findung}
@@ -2613,10 +2631,10 @@ unter \texttt{run\_example\_full.toml} im Distributions-Verzeichnis.}
 \texttt{mode\_type\_threshold}      & \texttt{60.0\,\%}    & OOP \\
 \texttt{mode\_type\_detail\_thresholds} & \texttt{(60, 75, 90)} & OOP \\
 \midrule
-% ── SCSD/SS ─────────────────────────────────────────────
+% ── SCSD/SSE ─────────────────────────────────────────────
 \texttt{analyze\_scsd}              & \texttt{True}        & SCSD \\
-\texttt{analyze\_ss}                & \texttt{True}        & SCSD \\
-\texttt{ss\_chain}                  & \texttt{""}          & SCSD \\
+\texttt{analyze\_sse}                & \texttt{True}        & SCSD \\
+\texttt{sse\_chain}                  & \texttt{""}          & SCSD \\
 \midrule
 % ── PCET / Marcus-Hush-Reorg ────────────────────────────
 \texttt{pcet\_enabled}              & \texttt{True}        & PCET \\
@@ -2805,10 +2823,10 @@ liegende Modes doppelt z\"ahlten.
 \endhead
 \texttt{analyze\_scsd}  & \texttt{True} & Symmetry-Coordinate
   Structural Decomposition aktivieren (erfordert \texttt{scsdpy}). \\
-\texttt{analyze\_ss}    & \texttt{True} & Sekund\"arstruktur-Analyse
+\texttt{analyze\_sse}    & \texttt{True} & Sekund\"arstruktur-Analyse
   aktivieren (Helices, Sheets aus PDB). \\
-\texttt{ss\_chain}      & \texttt{""}   & Chain-Filter f\"ur
-  SS-Erkennung. Leer = wie \texttt{pdb\_chain}. \\
+\texttt{sse\_chain}      & \texttt{""}   & Chain-Filter f\"ur
+  SSE-Erkennung. Leer = wie \texttt{pdb\_chain}. \\
 \bottomrule
 \end{longtable}
 
@@ -3041,7 +3059,7 @@ nur f\"ur TOML-Konfigurationsdateien.
         ca.\ 50--100 Atome).
   \item \texttt{cluster\_wt.pdb} -- Strukturmodell mit denselben
         Liganden-Resten wie im DFT-Lauf, plus weitere Reste f\"ur
-        die SS-Analyse.
+        die SSE-Analyse.
 \end{itemize}
 
 \subsubsection*{Konfiguration}
@@ -3376,7 +3394,7 @@ run_analysis(cfg)
 \paragraph{Was hier passiert.}
 Da \texttt{pdb\_file = ""}, l\"auft das Tool im "`reinen
 Cluster-Modus"': nur die Atome aus dem DFT-Lauf werden ausgewertet,
-keine SS-Analyse, keine PDB-Liganden-Mapping. Das ist der einfachste
+keine SSE-Analyse, keine PDB-Liganden-Mapping. Das ist der einfachste
 und schnellste Workflow.
 
 \subsubsection*{Schritt 2: Cluster-Erkennung}
@@ -3739,9 +3757,9 @@ Hier die \"Ubersicht.
 \midrule
 \endhead
 
-\texttt{SS\_*} & Sekund\"arstruktur-Auswertung: pro Mode die
+\texttt{SSE\_*} & Sekund\"arstruktur-Auswertung: pro Mode die
   Verschiebungs-Amplitude in jeder Helix bzw.\ jedem Sheet
-  (\texttt{SS\_Helix1}, \texttt{SS\_Sheet2}, \ldots). Erlaubt
+  (\texttt{SSE\_Helix1}, \texttt{SSE\_Sheet2}, \ldots). Erlaubt
   Identifikation kollektiver Gating-Modes ($<$200 cm$^{-1}$). \\
 
 \texttt{Ca\_Amplituden} & Pro Modus die C$_\alpha$-Verschiebungen
@@ -3760,7 +3778,7 @@ Hier die \"Ubersicht.
   Z-Score-Profile pro Feature, Top-Modes pro Cluster, Fisher-F-
   Statistik. Hilft, die UMAP-Cluster physikalisch zu interpretieren. \\
 
-\texttt{SS\_UMAP\_Cluster}, \texttt{SS\_UMAP\_Profil} & Wie oben, aber
+\texttt{SSE\_UMAP\_Cluster}, \texttt{SSE\_UMAP\_Profil} & Wie oben, aber
   basierend auf einem alternativen Feature-Vektor mit zus\"atzlichen
   Sekund\"arstruktur-Profilen (sekund\"arstrukturbezogene Embedding-
   Variante). \\
@@ -3867,7 +3885,7 @@ funktionalen Bereichen sortiert.
   \texttt{build\_et\_info}), H-Bond-Akzeptor-Suche. \\
 
 \texttt{embedding} & 603 & UMAP-Embedding der 31-dim
-  Feature-Matrix; HDBSCAN-Clusterung; SS-bezogene
+  Feature-Matrix; HDBSCAN-Clusterung; SSE-bezogene
   Embedding-Variante (siehe \S\ref{sec:embeddings}). \\
 
 \texttt{export} & 2063 & Excel-Schreiber fuer 25 Sheet-Typen,
@@ -4012,7 +4030,7 @@ Interpretation:
   \item $F_f \ll 1$ oder $F_f = 0$: das Feature ist im Wesentlichen
         konstant oder Rauschen (z.\,B.\ Null-Amplitude auf allen
         Modes f\"ur Sekund\"arstruktur-Features in einem System
-        ohne dieses SS-Element).
+        ohne dieses SSE-Element).
 \end{itemize}
 
 Die Fisher-F wird einmal pro Feature berechnet, unabh\"angig vom
@@ -4634,7 +4652,7 @@ Diese Verteilung ist mit den literaturbekannten NRVS-Banden f\"ur
         sind. \emph{Keine residuellen Beitr\"age aus benachbarten
         Resten}, kein numerisches Rauschen.
   \item \textbf{Sekund\"arstruktur-Auto-Erkennung}: Da das PDB keine
-        HELIX/SHEET-Records enth\"alt, wurden 3 SS-Elemente per
+        HELIX/SHEET-Records enth\"alt, wurden 3 SSE-Elemente per
         DSSP-H-Br\"ucken-Analyse rekonstruiert (Fallback-Pfad
         funktioniert).
 \end{enumerate}
@@ -5215,7 +5233,7 @@ darstellt. Im Tool: D$_{2h}$-Zerlegung mit kanonischer
 Referenz-[2Fe-2S]-Cluster (Fe-Fe = 2.73\,$\angstrom$,
 Fe-S = 2.20\,$\angstrom$).
 
-\paragraph{Sekund\"arstruktur (SS).}
+\paragraph{Sekund\"arstruktur (SSE).}
 Lokale 3D-Struktur eines Proteins (Helix, Beta-Faltblatt, Loop).
 Im Tool aus dem PDB-File abgeleitet (HELIX/SHEET-Records oder
 DSSP-Fallback oder $\varphi/\psi$-Heuristik).
@@ -5954,19 +5972,19 @@ Cluster-Zentrum, und allen Feature-Werten.
 mittleren Feature-Vektor, Fisher-F-Statistik pro Feature, und einer
 geordneten Liste repr\"asentativer Modes (n\"achster zum Zentrum).
 
-\subsubsection*{\texttt{SS\_UMAP\_clusters} / \texttt{SS\_UMAP\_profile}
+\subsubsection*{\texttt{SSE\_UMAP\_clusters} / \texttt{SSE\_UMAP\_profile}
                   \emph{(seit v1.0.3)}}
 \label{app:wb-embed-ssumap}
 
 Sekund\"arstruktur-UMAP, beschr\"ankt auf Modes, die mindestens einen
-nicht-null Eintrag in der pro-SS-Element-Feature-Zeile haben
-(\texttt{ss}-Dict nach \texttt{analyze\_all\_ss} nicht leer).
+nicht-null Eintrag in der pro-SSE-Element-Feature-Zeile haben
+(\texttt{sse}-Dict nach \texttt{analyze\_all\_sse} nicht leer).
 N\"utzlich zur Identifikation kollektiver
 Protein-R\"uckgrat-Modes, die mehrere Sekund\"arstrukturen
 gleichzeitig anregen. Das \texttt{*\_clusters}-Sheet listet Modes mit
-ihren SS-UMAP-Koordinaten und HDBSCAN-Cluster-ID; das
+ihren SSE-UMAP-Koordinaten und HDBSCAN-Cluster-ID; das
 \texttt{*\_profile}-Sheet gibt das Z-Score-Profil der
-diskriminierenden Top-30-SS-Elemente pro Cluster aus.
+diskriminierenden Top-30-SSE-Elemente pro Cluster aus.
 
 \subsubsection*{\texttt{Ca\_UMAP\_clusters} / \texttt{Ca\_UMAP\_profile}
                   \emph{(seit v1.0.3)}}
@@ -5985,7 +6003,7 @@ Konzeptionell beantworten die drei UMAPs komplement\"are Fragen:
         koppeln an dieselben Reorg-Kan\"ale (Fe-X, NH, HA)?
         N\"utzlich zur Identifikation ET-aktiver bzw.\
         PCET-aktiver Modes.
-  \item \emph{SS-UMAP} (\texttt{SS\_UMAP\_*}): Welche Modes haben
+  \item \emph{SSE-UMAP} (\texttt{SSE\_UMAP\_*}): Welche Modes haben
         denselben Sekund\"arstruktur-Fu\ss abdruck? N\"utzlich zur
         Identifikation dom\"anenkollektiver Modes.
   \item \emph{Ca-UMAP} (\texttt{Ca\_UMAP\_*}): Welche Modes haben
@@ -5997,7 +6015,7 @@ Konzeptionell beantworten die drei UMAPs komplement\"are Fragen:
 
 Begleitende PNGs (nur wenn \texttt{cfg.export\_embedding\_plots = true}):
 \texttt{\_embedding\_UMAP.png} (2 Panele),
-\texttt{\_embedding\_SS\_UMAP.png} (3 Panele: Frequenz / Mode-Typ /
+\texttt{\_embedding\_SSE\_UMAP.png} (3 Panele: Frequenz / Mode-Typ /
 Cluster), \texttt{\_embedding\_Ca\_UMAP.png} (3 Panele), und
 \texttt{\_ca\_amplitudes\_heatmap.png} (log-skalierte
 Residuum $\times$ Frequenz Heatmap der C$_\alpha$-Amplituden).
@@ -6013,32 +6031,32 @@ auf einem feinen Frequenzraster (Default 0.05\,cm$^{-1}$). Spalten:
 Verwendet f\"ur den direkten NRVS-Spektrums-Vergleich.
 
 \subsection{Sekund\"arstruktur-Workbook
-            (\texttt{*\_analysis\_SS.xlsx}, optional)}
-\label{app:wb-ss}
+            (\texttt{*\_analysis\_SSE.xlsx}, optional)}
+\label{app:wb-sse}
 
 Wird nur erzeugt, wenn ein PDB-File mit (oder DSSP-extrahierten)
 Sekund\"arstruktur-Records mitgeliefert wird. Enth\"alt typischerweise
-9--11 Sheets, je nach SS-Komplexit\"at:
+9--11 Sheets, je nach SSE-Komplexit\"at:
 
-\subsubsection*{Pro-SS-Element-Sheets (\texttt{SS\_*})}
+\subsubsection*{Pro-SSE-Element-Sheets (\texttt{SSE\_*})}
 
-Pro SS-Metrik ein eigenes Sheet:
-\texttt{SS\_amplitude\_mean},
-\texttt{SS\_amplitude\_max},
-\texttt{SS\_com\_amplitude} (Schwerpunkts-Amplitude),
-\texttt{SS\_lateral\_std} (laterale Bewegungs-Streuung),
-\texttt{SS\_lateral\_amplitude},
-\texttt{SS\_stretching} (axiale L\"angen-\"Anderung),
-\texttt{SS\_axial\_amplitude},
-\texttt{SS\_tilting\_angle} (Helix-Tilt),
-\texttt{SS\_internal\_amplitude} (interne Bewegung).
+Pro SSE-Metrik ein eigenes Sheet:
+\texttt{SSE\_amplitude\_mean},
+\texttt{SSE\_amplitude\_max},
+\texttt{SSE\_com\_amplitude} (Schwerpunkts-Amplitude),
+\texttt{SSE\_lateral\_std} (laterale Bewegungs-Streuung),
+\texttt{SSE\_lateral\_amplitude},
+\texttt{SSE\_stretching} (axiale L\"angen-\"Anderung),
+\texttt{SSE\_axial\_amplitude},
+\texttt{SSE\_tilting\_angle} (Helix-Tilt),
+\texttt{SSE\_internal\_amplitude} (interne Bewegung).
 
-Jedes Sheet hat eine Zeile pro Mode + Spalte pro SS-Element.
+Jedes Sheet hat eine Zeile pro Mode + Spalte pro SSE-Element.
 
-\subsubsection*{\texttt{SS\_UMAP\_Cluster} und \texttt{SS\_UMAP\_Profil}}
+\subsubsection*{\texttt{SSE\_UMAP\_Cluster} und \texttt{SSE\_UMAP\_Profil}}
 
 Wie \texttt{UMAP\_Cluster} und \texttt{UMAP\_Cluster\_Profil}, aber
-auf der SS-Feature-Matrix (statt der Cluster-Liganden-Matrix). Findet
+auf der SSE-Feature-Matrix (statt der Cluster-Liganden-Matrix). Findet
 strukturelle Cluster der Modes basierend auf ihrer Wirkung auf
 Sekund\"arstruktur-Elemente.
 

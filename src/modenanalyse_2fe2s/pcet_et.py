@@ -42,9 +42,8 @@ Saouma, Pinney, Mayer, Inorg. Chem. 53, 3153 (2014):
 Erste Charakterisierung von CPET an synthetischen [2Fe-2S]-Modellen.
 """
 
-import warnings
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 

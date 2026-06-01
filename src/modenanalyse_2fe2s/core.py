@@ -18,8 +18,8 @@ analyze_fe_ligand
     Fe-N/S/O Streck- and Biegebewegungen.
 analyze_his_hn
     H-N bondaenderung for protonierten histidineen.
-analyze_all_ss
-    Sekundaerstruktur-Amplitudenanalyse aller SS-elements.
+analyze_all_sse
+    Sekundaerstruktur-Amplitudenanalyse aller SSE-elements.
 classify_kernel_mode_from_evg
     Klassifikation after D2h-Symmetriekoordinaten.
 compute_scsd_for_mode_full
@@ -28,7 +28,7 @@ compute_scsd_for_mode_full
 Bugfixes (gegenvia Vorversion)
 ---------------------------------
 B1  _run_scsd:                    Versucht mehrere scsdpy-API-Formate.
-B2  analyze_all_ss:               Korrekte Indizierung via ``c2l``.
+B2  analyze_all_sse:               Korrekte Indizierung via ``c2l``.
 B3  compute_thermal_amplitude:    Fehlender Faktor 2 in the Nenner behoben.
 B7  analyze_fe_ligand:            Fe-Center dynamisch from ``LigandInfo``.
 """
@@ -39,7 +39,7 @@ from typing import Dict, List, Optional, Set, Tuple
 import numpy as np
 
 from .config import Config
-from .logio     import RunLog, get_eigvec, BlockInfo, _HIS
+from .logio     import get_eigvec, BlockInfo
 
 
 def _get_eigvec_smart(filepath: str,
@@ -80,7 +80,7 @@ def _get_eigvec_smart(filepath: str,
                               include_hydrogen=include_hydrogen)
     centers = [a["center"] for a in pr_atoms]
     return centers, evg
-from .geometry import CoordInfo, LigandInfo
+from .geometry import CoordInfo
 
 
 MAX_REASONABLE_KERNEL_D  = 1.0
@@ -92,6 +92,30 @@ SCORE_KEYS: List[str] = [
     "Rotation-ip",
 ]
 _SCORE_KEYS = SCORE_KEYS   # Abwaertskompatibilitaet
+
+# Canonical SSE-element descriptor metrics consumed by the SSE-UMAP embedding.
+# Single source of truth (cf. SCORE_KEYS): the SSE-UMAP previously hard-coded
+# this list locally and drifted from the keys produced by analyze_sse_element
+# (the v1.0.5 "bending_*" bug). Keep producer and consumer in sync here.
+#
+# v1.0.5: reduced from the original 9-metric set to a decorrelated subset.
+# Dropped were the two overall-magnitude features (amplitude_mean,
+# amplitude_max) -- which are collinear with the directional components and
+# therefore over-weighted the "overall amplitude" axis in the z-scored
+# embedding -- and the two second-moment features (lateral_std, stretching),
+# which largely duplicate the information in their first moments
+# (lateral_amplitude / axial_amplitude). The retained five are the orthogonal
+# rigid-body partition of the motion (translation = com_amplitude, tilt =
+# tilting_angle, internal strain = internal_amplitude) plus the axial/lateral
+# directional split. All nine descriptors are still written to the per-metric
+# SSE sheets; only the clustering FEATURE SELECTION changed.
+SSE_UMAP_METRICS: List[str] = [
+    "com_amplitude",       # rigid-body translation
+    "tilting_angle",       # rigid-body tilt (rotation perpendicular to axis)
+    "internal_amplitude",  # non-rigid internal strain (TLS residual)
+    "axial_amplitude",     # displacement component along the helix axis
+    "lateral_amplitude",   # displacement component perpendicular to the axis
+]
 
 
 # Set of group names for which the "empty eigenvector" warning has already
@@ -749,14 +773,44 @@ def _zero_lig(s: float) -> Dict:
 # Secondary structure-Analyse  (Bugfix B2: korrekte Indizierung)
 # ===========================================================================
 
-def analyze_ss_element(evg:        np.ndarray,
+# --- atomic masses (u) for the mass-weighted rigid-body decomposition ------
+_ATOMIC_MASS: Dict[str, float] = {
+    "H": 1.008, "C": 12.011, "N": 14.007, "O": 15.999, "S": 32.06,
+    "P": 30.974, "SE": 78.971, "FE": 55.845, "NA": 22.990, "MG": 24.305,
+    "CL": 35.45, "K": 39.098, "CA": 40.078, "MN": 54.938, "CU": 63.546,
+    "ZN": 65.38, "NI": 58.693, "CO": 58.933, "MO": 95.95, "BR": 79.904,
+}
+
+
+def _atom_mass(sym: Optional[str]) -> float:
+    """Standard atomic weight (u) for an element symbol; C as fallback."""
+    if not sym:
+        return 12.011
+    return _ATOMIC_MASS.get(str(sym).strip().upper(), 12.011)
+
+
+def _principal_axis(coords: np.ndarray) -> np.ndarray:
+    """Unit vector along the largest-variance direction of ``coords``.
+
+    Returns ``[0, 0, 1]`` for fewer than two points. The SVD sign is
+    arbitrary; all downstream uses take ``abs`` / ``std`` and are therefore
+    sign-invariant.
+    """
+    if coords.shape[0] < 2:
+        return np.array([0., 0., 1.])
+    _, _, Vt = np.linalg.svd(coords - coords.mean(0))
+    return Vt[0]
+
+
+def analyze_sse_element(evg:        np.ndarray,
                         c2l:        Dict[int,int],
-                        ss_centers: List[int],
+                        sse_centers: List[int],
                         atoms:      List[Dict],
                         idx_map:    Dict[int,int],
-                        ss_type:    str,
+                        sse_type:    str,
                         u_rms:      float = 1.0,
                         sigma_eigvec: float = 5e-4,
+                        axis_centers: Optional[List[int]] = None,
                         ) -> Dict:
     """Analysiert Amplitude and bending a Sekundaerstruktur-elements.
 
@@ -766,13 +820,13 @@ def analyze_ss_element(evg:        np.ndarray,
         Eigenvector the aktuellen Mode.
     c2l : dict of {int: int}
         Mapping Gaussian-Center → Zeilenindex in ``evg``.
-    ss_centers : list of int
-        Gaussian-Center-Nummern aller Atome dieses SS-elements.
+    sse_centers : list of int
+        Gaussian-Center-Nummern aller Atome dieses SSE-elements.
     atoms : list of dict
         Gaussian-atom list.
     idx_map : dict of {int: int}
         Center → Atom-Index.
-    ss_type : str
+    sse_type : str
         ``"helix"`` or ``"sheet"``.
     u_rms : float, optional
         Thermal scaling for error propagation. Standard: ``1.0``.
@@ -787,7 +841,7 @@ def analyze_ss_element(evg:        np.ndarray,
 
     Notes
     -----
-    Bugfix B2: ``ss_centers`` are Gaussian-Center-Nummern (nicht
+    Bugfix B2: ``sse_centers`` are Gaussian-Center-Nummern (nicht
     PDB listnindizes). ``c2l[center]`` liefert the ``evg``-Zeilenindex.
     """
     _zero = {k: 0. for k in (
@@ -798,68 +852,107 @@ def analyze_ss_element(evg:        np.ndarray,
         "s_lateral_amplitude","s_stretching","s_axial_amplitude",
         "s_tilting_angle","s_internal_amplitude")}
 
-    if not ss_centers or evg.shape[0] == 0:
+    if not sse_centers or evg.shape[0] == 0:
         return _zero
 
     # B2-Fix: Nutze c2l (Center → evg-Zeile) statt PDB listnpositionen
-    valid_rows:   List[int]       = []
+    valid_rows:   List[int]         = []
     valid_coords: List[List[float]] = []
-    for ctr in ss_centers:
+    valid_mass:   List[float]       = []
+    coord_by_center: Dict[int, List[float]] = {}
+    for ctr in sse_centers:
         row = c2l.get(ctr)
         if row is None or row >= evg.shape[0]:
             continue
         if ctr not in idx_map:
             continue
-        a = atoms[idx_map[ctr]]
+        a   = atoms[idx_map[ctr]]
+        xyz = [a["x"], a["y"], a["z"]]
         valid_rows.append(row)
-        valid_coords.append([a["x"], a["y"], a["z"]])
+        valid_coords.append(xyz)
+        valid_mass.append(_atom_mass(a.get("symbol")))
+        coord_by_center[ctr] = xyz
 
     if not valid_rows:
         return _zero
 
     e_sub = evg[valid_rows]
     c_sub = np.array(valid_coords)
+    m     = np.asarray(valid_mass, dtype=float)
+    M     = float(m.sum()) if m.sum() > 0 else float(len(m))
 
-    # Achse of the SS-elements (erster SVD-Vektor)
-    if c_sub.shape[0] >= 2:
-        ctr_c = c_sub.mean(0)
-        _, _, Vt = np.linalg.svd(c_sub - ctr_c)
-        axis = Vt[0]
-    else:
-        axis = np.array([0., 0., 1.])
+    # Principal axis of the SSE element. Prefer the backbone (C-alpha) trace
+    # when available: side-chain atoms can dominate the coordinate variance
+    # of short helices and tilt the SVD axis away from the true helix axis.
+    axis_coords = None
+    if axis_centers:
+        _ac = [coord_by_center[c] for c in axis_centers if c in coord_by_center]
+        if len(_ac) >= 2:
+            axis_coords = np.array(_ac)
+    axis = _principal_axis(axis_coords if axis_coords is not None else c_sub)
 
-    norms   = np.linalg.norm(e_sub, axis=1)
+    # --- per-atom displacement amplitudes -----------------------------------
+    norms    = np.linalg.norm(e_sub, axis=1)
+    amp_mean = float(np.mean(norms))
+    amp_max  = float(np.max(norms))
+
+    # --- projection-based directional descriptors (relative to axis) --------
     ax_proj = e_sub @ axis
     perp    = e_sub - np.outer(ax_proj, axis)
     perp_n  = np.linalg.norm(perp, axis=1)
+    ax_amp  = float(np.mean(np.abs(ax_proj)))     # mean axial displacement (A)
+    lat_amp = float(np.mean(perp_n))              # mean lateral displacement (A)
+    lat_std = float(np.std(perp_n))               # spread of lateral displacement
+    stretch = float(np.std(ax_proj))              # dispersion of axial displacement
 
-    amp_mean    = float(np.mean(norms))
-    amp_max     = float(np.max(norms))
-    com_amp     = float(np.linalg.norm(e_sub.mean(0)))
-    ax_amp      = float(np.mean(np.abs(ax_proj)))
-    lat_amp     = float(np.mean(perp_n))          # mittlere Querauslenkung (Å)
-    lat_std     = float(np.std(perp_n))           # Std the Querauslenkung (Å)
-    stretch     = float(np.std(ax_proj))           # differentielle stretching (Å)
-    # Interne Deformation: Querauslenkung relativ to Schwerpunktbewegung
-    e_rel       = e_sub - e_sub.mean(0)
-    perp_rel    = e_rel - np.outer(e_rel @ axis, axis)
-    int_amp     = float(np.mean(np.linalg.norm(perp_rel, axis=1)))
+    # --- mass-weighted rigid-body decomposition (translation + rotation) ----
+    # v1.0.5: COM displacement is now the true mass-weighted centre-of-mass
+    # motion (sum m_i u_i / sum m_i), not the unweighted atom-mean.
+    com_v   = (m[:, None] * e_sub).sum(0) / M
+    com_amp = float(np.linalg.norm(com_v))
+    c_com   = (m[:, None] * c_sub).sum(0) / M
+    r       = c_sub - c_com                       # positions about mass centre
+    d       = e_sub - com_v                        # displacement w/o translation
+
+    # Best-fit infinitesimal rotation omega minimising
+    #   sum_i m_i |d_i - omega x r_i|^2   ->   J omega = b
+    #   J = sum_i m_i (|r_i|^2 I - r_i r_i^T)   (inertia tensor)
+    #   b = sum_i m_i (r_i x d_i)
+    eye = np.eye(3)
+    J   = float((m * (r * r).sum(1)).sum()) * eye - (r.T @ (m[:, None] * r))
+    b   = (m[:, None] * np.cross(r, d)).sum(0)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)
-        com_v  = e_sub.mean(0)
-        tilt   = float(np.degrees(np.arctan2(
-            float(np.linalg.norm(com_v - (com_v@axis)*axis)),
-            abs(float(com_v@axis)) + 1e-30)))
+        omega = np.linalg.pinv(J) @ b              # rad (linearised, per mode)
+    omega_ax   = float(omega @ axis)               # twist about the helix axis
+    omega_perp = omega - omega_ax * axis           # tilt / rocking (perp. axis)
+    tilt       = float(np.degrees(np.linalg.norm(omega_perp)))
 
-    # error propagation: sigma for Meane
-    # v1.0.4 bugfix: previously hardcoded as 1e-4, which silently overrode
-    # the configured cfg.sigma_eigvec for SS-element sigmas only (all
-    # other sigmas correctly use cfg.sigma_eigvec). Default 5e-4 here
-    # matches the default Config value, so out-of-the-box behaviour is
-    # 5x larger than pre-v1.0.4 -- but it is now self-consistent and
-    # responds to cfg.sigma_eigvec changes in the TOML.
-    n_v = len(valid_rows)
-    s_amp = float(u_rms * sigma_eigvec * np.sqrt(n_v))
+    # v1.0.5: tilting_angle is now a genuine rigid-body tilt -- the rocking
+    # rotation perpendicular to the helix axis -- reported as a small-angle
+    # amplitude in degrees per unit mode. Previously it was the polar angle
+    # of the centroid translation relative to the axis (a property of the
+    # net translation, not a tilt), which was ~constant (~57.3 deg, the mean
+    # angle of an isotropic vector to a fixed axis) for delocalised protein
+    # modes and carried essentially no structural information.
+
+    # Internal deformation = residual after removing BOTH translation and the
+    # rigid rotation (a TLS-style non-rigid strain measure).
+    resid   = d - np.cross(omega, r)
+    int_amp = float(np.mean(np.linalg.norm(resid, axis=1)))
+
+    # --- first-order uncertainties ------------------------------------------
+    # v1.0.5: honest first-order estimates. The per-component eigenvector
+    # uncertainty is sigma_ev = u_rms * sigma_eigvec. For a mean over n atoms
+    # the standard error scales as 1/sqrt(n) (the pre-1.0.5 code used sqrt(n)
+    # -- the scaling of a *sum* -- plus arbitrary 1.4/1.5 factors, and applied
+    # a displacement-unit sigma to an angle in degrees).
+    n_v      = len(valid_rows)
+    sigma_ev = float(u_rms) * float(sigma_eigvec)
+    sem      = float(sigma_ev / np.sqrt(n_v))
+    # angular error ~ displacement error / lever arm (radius of gyration)
+    rg       = float(np.sqrt(np.mean((r * r).sum(1)))) if n_v else 0.0
+    s_tilt   = float(np.degrees(sem / rg)) if rg > 1e-9 else 0.0
 
     return {
         "amplitude_mean":     amp_mean,  "amplitude_max":    amp_max,
@@ -867,23 +960,24 @@ def analyze_ss_element(evg:        np.ndarray,
         "lateral_amplitude":  lat_amp,   "stretching":       stretch,
         "axial_amplitude":    ax_amp,    "tilting_angle":    tilt,
         "internal_amplitude": int_amp,
-        "s_amplitude_mean":   s_amp,    "s_com_amplitude":  s_amp,
-        "s_lateral_std":      s_amp*1.5,"s_lateral_amplitude": s_amp,
-        "s_stretching":       s_amp*1.4,"s_axial_amplitude":s_amp,
-        "s_tilting_angle":    s_amp,    "s_internal_amplitude": s_amp,
+        "s_amplitude_mean":   sem,       "s_com_amplitude":  sem,
+        "s_lateral_std":      sem,       "s_lateral_amplitude": sem,
+        "s_stretching":       sem,       "s_axial_amplitude": sem,
+        "s_tilting_angle":    s_tilt,    "s_internal_amplitude": sem,
     }
 
 
-def analyze_all_ss(evg:          np.ndarray,
+def analyze_all_sse(evg:          np.ndarray,
                     c2l:          Dict[int,int],
-                    ss_center_map: Dict[str, List[int]],
+                    sse_center_map: Dict[str, List[int]],
                     atoms:        List[Dict],
                     idx_map:      Dict[int,int],
-                    ss_elements:  List[Dict],
+                    sse_elements:  List[Dict],
                     u_rms:        float = 1.0,
                     sigma_eigvec: float = 5e-4,
+                    sse_axis_center_map: Optional[Dict[str, List[int]]] = None,
                     ) -> Dict[str, Dict]:
-    """Analysiert alle SS-elements for a Mode.
+    """Analysiert alle SSE-elements for a Mode.
 
     Parameters
     ----------
@@ -891,29 +985,31 @@ def analyze_all_ss(evg:          np.ndarray,
         Eigenvector the aktuellen Mode.
     c2l : dict of {int: int}
         Mapping Gaussian-Center → Zeilenindex in ``evg``.
-    ss_center_map : dict of {str: list of int}
-        SS-element-Name → Gaussian-Center-Nummern.
+    sse_center_map : dict of {str: list of int}
+        SSE-element-Name → Gaussian-Center-Nummern.
     atoms : list of dict
         Gaussian-atom list.
     idx_map : dict of {int: int}
         Center → Atom-Index.
-    ss_elements : list of dict
-        SS-element-Records from ``parse_pdb``.
+    sse_elements : list of dict
+        SSE-element-Records from ``parse_pdb``.
     u_rms : float, optional
         Thermal scaling. Standard: ``1.0``.
 
     Returns
     -------
     dict of {str: dict}
-        Mapping SS-element-Name → Analyse-Kennzahlen.
+        Mapping SSE-element-Name → Analyse-Kennzahlen.
     """
     out: Dict[str, Dict] = {}
-    for elem in ss_elements:
+    _axis_map = sse_axis_center_map or {}
+    for elem in sse_elements:
         name    = elem["name"]
-        centers = ss_center_map.get(name, [])
-        out[name] = analyze_ss_element(
+        centers = sse_center_map.get(name, [])
+        out[name] = analyze_sse_element(
             evg, c2l, centers, atoms, idx_map, elem["type"], u_rms,
-            sigma_eigvec=sigma_eigvec)
+            sigma_eigvec=sigma_eigvec,
+            axis_centers=_axis_map.get(name))
     return out
 
 
@@ -1399,7 +1495,15 @@ def analyze_mode(bi:          BlockInfo,
     # Cluster COM / Expansion / Rotation
     cl_com = cl_exp = cl_rot = 0.0
     if evg_cl.shape[0] >= 2 and math.isfinite(kern_d):
-        cl_com = float(np.linalg.norm(evg_cl.mean(0)))
+        # v1.0.5: mass-weighted cluster COM displacement (was the unweighted
+        # atom-mean; Fe and S differ in mass, so the unweighted centroid is
+        # not the centre of mass). evg_cl rows correspond 1:1, in order, to
+        # the centres [c for c in (fe_c + s_c) if c in c2l] (see _evg_sub).
+        _cl_ctr = [c for c in (fe_c + s_c) if c in c2l]
+        _cl_m   = np.array([_atom_mass(atoms[idx_map[c]].get("symbol"))
+                            if c in idx_map else 12.011 for c in _cl_ctr])
+        cl_com  = float(np.linalg.norm(
+            (_cl_m[:, None] * evg_cl).sum(0) / _cl_m.sum()))
         coords_cl = np.array(
             [[atoms[idx_map[c]]["x"], atoms[idx_map[c]]["y"], atoms[idx_map[c]]["z"]]
              for c in fe_c + s_c if c in idx_map])
@@ -1691,7 +1795,7 @@ def analyze_mode(bi:          BlockInfo,
         "reorg_subchannels": reorg_subchannels,
         "pts_ref":   pts_ref_cl,
         "pts_dist":  pts_dist_cl,
-        # Interne Arrays for SS and Calpha (werden after SS-Analyse entfernt)
+        # Interne Arrays for SSE and Calpha (werden after SSE-Analyse entfernt)
         "_centers":  centers,
         "_evg":      evg,
         "_c2l":      c2l,
