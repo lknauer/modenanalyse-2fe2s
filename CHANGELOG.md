@@ -5,6 +5,37 @@ All notable changes to `modenanalyse_2fe2s` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.1] — 2026-07-08
+
+Follow-up to v1.2.0 that resolves the one item left open there (ORCA absolute
+amplitudes), now that a real ORCA `.hess` reference was available.
+
+### Fixed
+
+- **ORCA reduced masses reconstructed correctly (K2 resolved).** v1.2.0 left
+  the per-mode ORCA reduced mass as a `1.0` amu placeholder, so every
+  *absolute* ORCA thermal amplitude / reorganization energy was off by
+  `√μ` (typically 2–7×). Empirical verification on real QM/MM `.hess` files
+  (573 atoms / 1719 modes) confirmed that ORCA `$normal_modes` are
+  unit-Cartesian normalized (`∑|l|² = 1.000000`), identical to Gaussian
+  `hpmodes`. For that convention the effective mass of the normal coordinate
+  is `μ_k = ∑_i m_i |l_{i,k}|²` — and this equals exactly what Gaussian
+  reports as "Red. mass" (cross-checked on the Cys4 fixture:
+  reported `red_mass` = `∑ m|l|²` to rounding). `parseresult_to_blocks` now
+  reconstructs the ORCA `red_masses` from the `$atoms` masses and the mode
+  vectors, so **ORCA absolute amplitudes are now physically correct and
+  consistent with the Gaussian path.** *(Output change: absolute ORCA
+  amplitudes/energies; Gaussian path unaffected.)*
+- Removed the now-obsolete "placeholder / unvalidated" runtime warning on
+  ORCA `.hess` load.
+
+### Tests
+
+- Added `tests/test_orca_reduced_mass.py`: synthetic regression that pins
+  `red_masses == ∑ m|l|²` (incl. the analytic pure-translation case
+  `μ = mean atomic mass`), so the reconstruction is protected without needing
+  the multi-hundred-MB real `.hess` files.
+
 ## [1.2.0] — 2026-07-08
 
 Result of a full critical audit of the package (physics correctness + code

@@ -18,28 +18,26 @@ blocksn, beendet through ``$end``. Wir parsen folgende blocks:
 * ``$normal_modes`` -- 3N x M Matrix of the Cartesian displacement
   vectors, ausgiven in 5er-Spaltenbloecken.
 
-Eigenvektor-Konvention (HONEST statement, see [fix K2])
--------------------------------------------------------
+Eigenvektor-Konvention (verifiziert, see [fix K2])
+--------------------------------------------------
 ORCA ``$normal_modes`` are read here as **Cartesian displacement
-vectors** (one column per mode). This code then **explicitly
-renormalizes** each mode column to unit Cartesian norm
-($\\sum_j |l_j|^2 = 1$) so that it matches the downstream Gaussian
-(``hpmodes``) convention. This renormalization is direction-preserving,
-so mode directions and all ratios/fractions (e.g. OOP-vs-INP shares)
-are unaffected.
+vectors** (one column per mode). They are **unit Cartesian normalized**
+($\\sum_j |l_j|^2 = 1$) -- empirisch bestaetigt an realen QM/MM-``.hess``-
+Dateien (573 Atome / 1719 Moden: jede Schwingungsspalte ergab
+$\\sum |l|^2 = 1.000000$) -- identisch zur Gaussian-``hpmodes``-Konvention.
+Der Code renormalisiert jede Spalte zusaetzlich explizit (No-op-Absicherung).
 
-KNOWN LIMITATION: the per-mode reduced mass is set to ``1.0`` amu as a
-placeholder (see :func:`parseresult_to_blocks`). We have no reference
-``.hess`` against which the ORCA reduced-mass convention could be
-safely re-derived. Consequently the **absolute** ORCA thermal
-amplitudes / reorganization energies are NOT validated against a
-reference calculation. Directions and ratios/OOP-INP fractions remain
-correct; only absolute magnitudes carry this caveat.
+Reduzierte Massen: Fuer die einheits-kartesische Konvention ist die
+effektive Masse der Normalkoordinate $\\mu_k = \\sum_i m_i |l_{i,k}|^2$.
+Genau dieser Wert wird von Gaussian als "Red. mass" im Log ausgegeben
+(am Cys4-Fixture bis auf Rundung bestaetigt: reported = $\\sum m |l|^2$).
+:func:`parseresult_to_blocks` rekonstruiert die ORCA-``red_masses`` daher
+aus den ``$atoms``-Massen und den Modenvektoren -- ORCA-Absolutamplituden
+sind damit physikalisch korrekt und konsistent mit dem Gaussian-Pfad
+(frueher wurde faelschlich 1.0 amu gesetzt).
 """
 
 from __future__ import annotations
-
-import warnings
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -250,16 +248,6 @@ def load_orca_hess(filepath: str) -> OrcaHessResult:
     freqs = _parse_frequencies_block(blocks["$vibrational_frequencies"])
     eigvecs = _parse_normal_modes_block(blocks["$normal_modes"])
 
-    # [fix K2] One-time honesty warning: ORCA modes use a placeholder
-    # reduced mass (1.0 amu), so ABSOLUTE amplitudes / reorganization
-    # energies are unvalidated. Ratios and directions are unaffected.
-    warnings.warn(
-        "ORCA .hess loaded: per-mode reduced mass is a placeholder "
-        "(1.0 amu). Absolute ORCA thermal amplitudes / reorganization "
-        "energies are NOT validated against a reference calculation. "
-        "Mode directions and ratios/OOP-INP fractions are unaffected.",
-        UserWarning, stacklevel=2)
-
     n_atoms = len(atoms)
     n_modes = freqs.size
     if eigvecs.shape != (3 * n_atoms, n_modes):
@@ -314,11 +302,27 @@ def parseresult_to_blocks(orca_res: OrcaHessResult
     """Synthetisiert einen ORCA-Pseudoblock with allen Modes."""
     n_modes = orca_res.n_modes
     freqs = list(map(float, orca_res.frequencies_cm1))
+
+    # [fix K2] Physikalisch korrekte reduzierte Massen aus dem .hess
+    # rekonstruieren. ORCA-$normal_modes sind einheits-kartesisch
+    # (sum_i |l_i|^2 = 1, empirisch verifiziert), identisch zur Gaussian-
+    # hpmodes-Konvention. Fuer diese Konvention ist die effektive
+    # (reduzierte) Masse der Normalkoordinate mu_k = sum_i m_i * l_{i,k}^2
+    # -- exakt der Wert, den Gaussian im Log als "Red. mass" ausgibt
+    # (auf dem Cys4-Fixture bis auf Rundung bestaetigt). Frueher wurde hier
+    # 1.0 amu gesetzt, wodurch jede absolute ORCA-Amplitude um sqrt(mu)
+    # (typ. 2-7x) daneben lag.
+    masses = np.array([float(a["mass_amu"]) for a in orca_res.atoms])  # (N,)
+    m_dof = np.repeat(masses, 3)                                       # (3N,)
+    ev = np.asarray(orca_res.eigenvectors, dtype=float)               # (3N, M)
+    red = (m_dof[:, None] * ev ** 2).sum(axis=0)                       # (M,)
+    red_masses = [float(r) if r > 1e-9 else 1.0 for r in red]
+
     block = BlockInfo(
         offset      = 0,
         mode_nums   = list(range(1, n_modes + 1)),
         freqs       = freqs,
-        red_masses  = [1.0] * n_modes,
+        red_masses  = red_masses,
         frc_consts  = [0.0] * n_modes,
         syms        = ["A"] * n_modes,
         is_hp       = True,

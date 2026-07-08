@@ -2374,7 +2374,7 @@ def _ws_cluster_profil(wb, results, cluster_data, feat_names):
             import warnings as _w; _w.warn(f"[export] Cluster-Profil Error: {_e}")
 
 
-__version__ = "1.2.0"  # kept in sync with package version (config.__version__)
+__version__ = "1.2.1"  # kept in sync with package version (config.__version__)
 
 
 # ===========================================================================

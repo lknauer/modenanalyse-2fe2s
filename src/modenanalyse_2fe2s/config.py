@@ -760,7 +760,7 @@ class Config:
             f.write("\n".join(lines) + "\n")
 
 
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 # v1.0.1: Documentation cleanup release. No code changes — analysis
 # pipeline is identical to v1.0.0 and produces numerically identical
 # results. See CHANGELOG.md for the full list of documentation fixes.

@@ -2,8 +2,8 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-1.2.0-green.svg)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/tests-178%20passing-brightgreen.svg)](tests/)
+[![Version](https://img.shields.io/badge/version-1.2.1-green.svg)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-181%20passing-brightgreen.svg)](tests/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20074194.svg)](https://doi.org/10.5281/zenodo.20074194)
 
 **Mode-resolved vibrational analysis for [2Fe-2S] clusters**, with focus on
@@ -169,7 +169,7 @@ The documentation comes in three complementary documents:
   field with its code effect, every Excel column with its source
   function and propagated-sigma rule, complete audit trail of the
   v1.0.4 changes (FUND 1–17 plus 9 manual-drift findings), test
-  suite documentation (178 tests), validation strategy, and an
+  suite documentation (181 tests), validation strategy, and an
   alphabetical code-function index. Designed so a reviewer can
   audit the package without consulting any other document.
 
@@ -204,7 +204,7 @@ cm⁻¹, $\Lambda_\text{HA} = 0$ as expected for the H87C mutant
 
 ## Tests
 
-178 tests covering geometry, reorganization, PCET H-bond geometry,
+181 tests covering geometry, reorganization, PCET H-bond geometry,
 multi-cluster wrapper, a headline reorganization-energy regression pin,
 and end-to-end smoke tests:
 
