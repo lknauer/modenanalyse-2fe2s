@@ -1,6 +1,6 @@
 % =========================================================================
 % modenanalyse_2fe2s -- Handbuch und theoretische Dokumentation
-% Version 1.1.0  (Juni 2026)
+% Version 1.2.1  (Juli 2026)
 %
 % Lukas Knauer, AG Schuenemann, RPTU Kaiserslautern-Landau
 % =========================================================================
@@ -9,7 +9,7 @@
 % ---------- Encoding & Sprache -------------------------------------------
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
-\usepackage[main=ngerman,provide=*]{babel}
+\usepackage[main=ngerman]{babel}
 \usepackage{lmodern}
 \usepackage{microtype}
 
@@ -209,7 +209,7 @@
   \begin{center}
     \vspace*{2cm}
     {\Huge\bfseries\color{accent} modenanalyse\_2fe2s}\\[0.4cm]
-    {\large Version 1.1.0}\\[2cm]
+    {\large Version 1.2.1}\\[2cm]
 
     \rule{\textwidth}{0.4pt}\\[0.3cm]
     {\LARGE\bfseries Handbuch und theoretische Dokumentation}\\[0.3cm]
@@ -350,7 +350,7 @@ spezialisierten Werkzeugen separat berechnen.
 
 \begin{infobox}
 \textbf{Changelog-H\"ohepunkte seit v1.0.0.}
-Diese Manual-Ausgabe beschreibt das Paket im Stand v1.1.0
+Diese Manual-Ausgabe beschreibt das Paket im Stand v1.2.1
 (vollst\"andige Liste in \texttt{CHANGELOG.md}). Inhaltliche
 \"Anderungen seit v1.0.0:
 \begin{itemize}\setlength{\itemsep}{0pt}
@@ -392,6 +392,27 @@ Diese Manual-Ausgabe beschreibt das Paket im Stand v1.1.0
         Bezeichnung \emph{secondary structure element}. Alte
         TOML-Schl\"ussel (\texttt{analyze\_ss}, \texttt{ss\_chain}) werden
         weiterhin akzeptiert.
+  \item \textbf{v1.2.0}: Kritik-Review-Release. Multi-Cluster-L\"aufe
+        brechen nicht mehr beim ersten fehlschlagenden Cluster den ganzen
+        Prozess ab; die SCSD-Symmetriezerlegung (die gegen das
+        ver\"offentlichte \texttt{scsdpy} still ausgefallen war) ist
+        wiederhergestellt; die PCET-Wasserstoffbr\"ucken-Erkennung erh\"alt
+        ein D--H$\cdots$A-Winkelkriterium ($\geq 120^\circ$) und eine
+        korrigierte Akzeptor-Abstandsgewichtung; die His-Protonierung ist
+        auf das richtige Residuum beschr\"ankt; die Kabsch-Ausrichtung nutzt
+        elementgematchte Anker mit RMSD-Akzeptanzschwelle; und die
+        Massengewichtung verwendet die QM-eigenen Atommassen. Mehrere dieser
+        Punkte \"andern das numerische Ergebnis, betroffene Systeme also
+        einmal neu ausf\"uhren und die Kennzahlen neu validieren. Ein im
+        Standardlauf ausgef\"uhrter Regressionstest fixiert
+        $\Lambda_\text{FeFe}/\Lambda_\text{FeS}$ f\"ur das Referenzsystem.
+  \item \textbf{v1.2.1}: Die reduzierten ORCA-Massen werden als
+        $\mu_k = \sum_i m_i\,|l_{i,k}|^2$ rekonstruiert (verifiziert an
+        realen ORCA-\texttt{.hess}-Dateien und \"ubereinstimmend mit der
+        Gaussian-``Red.\ mass''-Konvention) und ersetzen einen
+        \texttt{1.0}-amu-Platzhalter, der die absoluten ORCA-Amplituden um
+        $\sqrt{\mu}$ zu gro\ss{} machte. Der Gaussian-Pfad bleibt
+        unver\"andert.
 \end{itemize}
 \end{infobox}
 

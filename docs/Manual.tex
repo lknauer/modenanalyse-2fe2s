@@ -1,6 +1,6 @@
 % =========================================================================
 % modenanalyse_2fe2s -- Manual and theoretical documentation (English)
-% Version 1.1.0  (June 2026)
+% Version 1.2.1  (July 2026)
 %
 % Lukas Knauer, AG Schuenemann, RPTU Kaiserslautern-Landau
 % =========================================================================
@@ -212,7 +212,7 @@
   \begin{center}
     \vspace*{2cm}
     {\Huge\bfseries\color{accent} modenanalyse\_2fe2s}\\[0.4cm]
-    {\large Version 1.1.0}\\[2cm]
+    {\large Version 1.2.1}\\[2cm]
 
     \rule{\textwidth}{0.4pt}\\[0.3cm]
     {\LARGE\bfseries Manual and Theoretical Documentation}\\[0.3cm]
@@ -319,7 +319,7 @@ calculation using specialized external tools.
 
 \begin{infobox}
 \textbf{Changelog highlights since v1.0.0.}
-This release of the manual reflects the package at version v1.1.0
+This release of the manual reflects the package at version v1.2.1
 (see \texttt{CHANGELOG.md} for the full list). The substantive
 deltas since v1.0.0 are:
 \begin{itemize}\setlength{\itemsep}{0pt}
@@ -358,6 +358,25 @@ deltas since v1.0.0 are:
         matches the conventional term \emph{secondary structure element}.
         Legacy TOML keys (\texttt{analyze\_ss}, \texttt{ss\_chain}) remain
         accepted for backward compatibility.
+  \item \textbf{v1.2.0}: critical-review release. Multi-cluster runs no
+        longer abort the whole process on the first failing cluster; the
+        SCSD symmetry decomposition (which had become a silent no-op against
+        the published \texttt{scsdpy}) is restored; PCET hydrogen-bond
+        detection gains a D--H$\cdots$A angle criterion ($\geq 120^\circ$)
+        and a corrected acceptor-distance weighting; His protonation is
+        restricted to the correct residue; Kabsch cluster alignment uses
+        element-matched anchors with an RMSD acceptance gate; and mass
+        weighting now uses the QM program's own atomic masses. Several of
+        these change numerical output, so affected systems should be re-run
+        and headline reorganization numbers re-validated. A default-run
+        regression pins $\Lambda_\text{FeFe}/\Lambda_\text{FeS}$ for the
+        reference fixture.
+  \item \textbf{v1.2.1}: ORCA reduced masses are reconstructed as
+        $\mu_k = \sum_i m_i\,|l_{i,k}|^2$ (verified against real ORCA
+        \texttt{.hess} files and confirmed to match the Gaussian ``Red.\
+        mass'' convention), replacing a \texttt{1.0}~amu placeholder that
+        made absolute ORCA amplitudes too large by $\sqrt{\mu}$. The
+        Gaussian path is unaffected.
 \end{itemize}
 \end{infobox}
 

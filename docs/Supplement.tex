@@ -1,6 +1,6 @@
 % =========================================================================
 % modenanalyse_2fe2s -- Supplementary Technical Documentation
-% Version 1.1.0 (June 2026)
+% Version 1.2.1 (July 2026)
 % =========================================================================
 %
 % This document is the technical supplement to the user manual.
@@ -191,7 +191,7 @@
 \author{Lukas Knauer\\
 \small AG Sch\"unemann, RPTU Kaiserslautern-Landau\\
 \small \texttt{lknauer@rptu.de}}
-\date{Software version 1.1.0 \quad\textbar\quad Document compiled \today}
+\date{Software version 1.2.1 \quad\textbar\quad Document compiled \today}
 
 \begin{document}
 
@@ -308,7 +308,7 @@ but distinct -- the distinction is spelled out in
 \toprule
 \textbf{Property} & \textbf{Value} & \textbf{Notes} \\
 \midrule
-Package version           & 1.1.0              & SemVer; the audit trail
+Package version           & 1.2.1              & SemVer; the audit trail
                                                   is \cref{sec:audit-trail}. \\
 Python                    & $\geq$ 3.11        & Type-hint syntax used. \\
 Primary input             & Gaussian \file{.log} \texttt{Freq=hpmodes}
@@ -7146,35 +7146,56 @@ configs run unchanged under v1.0.4.
 \part{Test Suite}
 \label{sec:test-suite}
 
-This part documents the test suite of v1.0.4: 145 unit tests + 4
-end-to-end (E2E) tests across four categories. The total count
-makes the package's regression coverage roughly proportional to
-its line count (one test per 87 lines of source on average).
+This part documents the test suite. As of v1.2.1 it comprises
+177 unit tests + 4 end-to-end (E2E) smoke tests (181 total; the
+E2E tests carry the \texttt{slow} marker and are deselected by
+default). The detailed per-suite sections that follow describe the
+v1.0.4 regression baseline; the suite was expanded in v1.1.0
+(SSE-rename guards), v1.2.0 (critical-review regression tests,
+including a default-run headline-$\Lambda$ regression and PCET
+angle-criterion tests) and v1.2.1 (ORCA reduced-mass reconstruction).
 
 % -------------------------------------------------------------------------
-\section{Overview: 149 tests across four categories}
+\section{Overview: 181 tests}
 
-\begin{longtable}{p{0.32\textwidth} p{0.10\textwidth} p{0.50\textwidth}}
+\begin{longtable}{p{0.34\textwidth} p{0.08\textwidth} p{0.50\textwidth}}
 \toprule
 \textbf{Suite} & \textbf{Tests} & \textbf{Purpose} \\
 \midrule
-\fn{test\_v104\_audit\_fixes.py} & 19
-  & Regression guards for the 13 FUND findings + 3 FUND-13 synthetic-zero
-    sub-tests + manual-drift sanity. \\
+\fn{test\_config.py} & 26 & Config defaults, TOML parsing/coercion,
+    validation, field inventory. \\
+\fn{test\_v104\_audit\_fixes.py} & 24
+  & Regression guards for the FUND findings, half-open windows,
+    plus SCSD sigma-scaling and symmetry-validation tests. \\
+\fn{test\_core\_physics.py} & 23 & Thermal amplitude, OOP/INP,
+    kernel metrics, classification. \\
 \fn{test\_sanity\_physics.py} & 19
   & Physical property tests on $\urms$, OOP/INP, $\Delta r$,
-    $\lambda$, RSS -- run against the implementation without
-    requiring a Gaussian log. \\
-\fn{test\_manual\_code\_refs.py} & 5
-  & Cross-validation that every \codref{} in Manual.tex and
-    Supplement.tex points to a real function in the source. \\
-\fn{test\_geometry.py}, \fn{test\_logio.py}, etc.
-  & 102 & The legacy unit suites for individual modules. \\
-\fn{e2e/} & 4 & End-to-end smoke tests on the example
-                Cys$_2$His$_2$ (Apd1-WT) and Cys$_4$
-                (mitoNEET-H87C) benchmark systems. \\
+    $\lambda$, RSS, and the HA reaction coordinate -- run against the
+    implementation without requiring a Gaussian log. \\
+\fn{test\_reorganization.py} & 18 & Marcus--Hush $\lambda$ per channel,
+    additivity, scaling, non-negativity. \\
+\fn{test\_pcet\_et.py} & 14 & H-bond acceptor detection, exclusions,
+    element filter, and the D--H$\cdots$A angle criterion. \\
+\fn{test\_ca\_umap\_and\_exports.py} & 10 & C$\alpha$-UMAP embedding and
+    Excel/plot export paths. \\
+\fn{test\_sse\_physics\_v105.py} & 8 & SSE rigid-body decomposition
+    (translation/rotation/internal) against ground truth. \\
+\fn{test\_multi\_cluster.py} & 7 & Multi-[2Fe-2S] detection and the
+    per-cluster wrapper. \\
+\fn{test\_group\_map\_indexing.py}, \fn{test\_manual\_code\_refs.py}
+  & 12 & Group/center mapping; every \codref{} points to a real function. \\
+\fn{test\_regression\_reorg.py} & 6 & Default-run headline regression
+    pinning $\Lambda_\text{FeFe}/\Lambda_\text{FeS}$ for the reference
+    fixture ($\pm 2\,\%$). \\
+\fn{test\_helpers\_v35.py} & 5 & Bend-split invariants and NaN guards. \\
+\fn{test\_v110\_rename.py} & 3 & SS$\to$SSE rename / legacy-alias guards. \\
+\fn{test\_orca\_reduced\_mass.py} & 2 & ORCA reduced-mass reconstruction
+    $\mu_k = \sum_i m_i|l_{i,k}|^2$ (incl.\ analytic pure-translation case). \\
+\fn{test\_smoke.py} (E2E, \texttt{slow}) & 4 & End-to-end smoke tests on
+    the Cys$_4$ benchmark log (full pipeline to Excel). \\
 \midrule
-\textbf{Total} & \textbf{154} & \\
+\textbf{Total} & \textbf{181} & \\
 \bottomrule
 \end{longtable}
 
