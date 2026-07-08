@@ -47,6 +47,7 @@ from __future__ import annotations
 import os
 import re
 import time
+import warnings
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -664,6 +665,44 @@ def save_scan_cache(filepath: str,
             _sw.warn(_msg, UserWarning, stacklevel=2)
 
 
+# [fix M10] Gaussian thermochemistry per-atom masses, e.g.
+#   "Atom  1 has atomic number  6 and mass  12.00000"
+_THERMO_MASS_PAT = re.compile(
+    rb"Atom\s+(\d+)\s+has\s+atomic\s+number\s+\d+\s+and\s+mass\s+"
+    rb"([-+]?\d+(?:\.\d+)?)")
+
+
+def read_thermochem_masses(filepath: str) -> Dict[int, float]:
+    """Extract per-atom QM masses (u) from the Gaussian thermochemistry block.
+
+    [fix M10] Gaussian prints lines like
+    ``Atom  1 has atomic number  6 and mass  12.00000`` in the
+    thermochemistry section. This returns a mapping ``{center: mass_amu}``
+    (1-based center, matching ``read_std_orient``). If the block is absent
+    (e.g. no thermochemistry / frequency job) an empty dict is returned so
+    callers transparently fall back to the standard-weight symbol table.
+    The whole scan is wrapped defensively: any parse error yields ``{}``
+    rather than failing the run.
+    """
+    masses: Dict[int, float] = {}
+    try:
+        with open(filepath, "rb") as fh:
+            for line in fh:
+                m = _THERMO_MASS_PAT.search(line)
+                if m:
+                    try:
+                        masses[int(m.group(1))] = float(m.group(2))
+                    except (ValueError, IndexError):
+                        continue
+    except OSError as exc:
+        warnings.warn(
+            f"read_thermochem_masses: could not read QM masses from "
+            f"{filepath!r} ({type(exc).__name__}: {exc}); falling back to "
+            f"standard atomic weights.", UserWarning, stacklevel=2)
+        return {}
+    return masses
+
+
 def read_std_orient(
         filepath: str,
         so_offset: int,
@@ -704,6 +743,12 @@ def read_std_orient(
     pat = re.compile(
         rb"\s*(\d+)\s+(\d+)(?:\s+\d+)?\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)")
 
+    # [fix M10] Prefer the QM per-atom masses from the thermochemistry block
+    # (if present) so the Gaussian path also uses real (isotope-aware) masses
+    # via the downstream _atom_mass preference. Absent block -> empty dict ->
+    # transparent fallback to the standard-weight symbol table.
+    thermo_masses = read_thermochem_masses(filepath)
+
     with open(filepath, "rb") as fh:
         fh.seek(so_offset)
         for _ in range(5):
@@ -723,6 +768,8 @@ def read_std_orient(
                 "symbol":     _ELEM.get(anum, f"Z{anum}"),
                 "x": x, "y": y, "z": z,
             }
+            if ctr in thermo_masses:                 # [fix M10]
+                entry["mass_amu"] = thermo_masses[ctr]
             idx_map[ctr] = len(atoms)
             atoms.append(entry)
 
@@ -1461,4 +1508,4 @@ def parse_pdb(pdb_path: str, chain_filter: str = "") -> Dict:
         "sse_elements": sse_elems,
     }
 
-__version__ = "1.4"  # modenanalyse v1.4
+__version__ = "1.2.0"  # kept in sync with package version (config.__version__)

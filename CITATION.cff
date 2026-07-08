@@ -12,8 +12,8 @@ authors:
     affiliation: >-
       AG Schünemann, Department of Physics, RPTU Kaiserslautern-Landau
     email: lukas@knauernet.de
-version: "1.1.0"
-date-released: "2026-06-01"
+version: "1.2.0"
+date-released: "2026-07-08"
 license: GPL-3.0-or-later
 doi: 10.5281/zenodo.20074193
 url: "https://doi.org/10.5281/zenodo.20074193"
@@ -24,6 +24,7 @@ identifiers:
   - type: doi
     value: 10.5281/zenodo.20494993
     description: Zenodo DOI for v1.1.0
+  # NOTE: v1.2.0 Zenodo DOI to be added here after the release is published.
   - type: doi
     value: 10.5281/zenodo.20169116
     description: Zenodo DOI for v1.0.4

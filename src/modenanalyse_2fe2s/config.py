@@ -326,6 +326,9 @@ class Config:
             errors.append(
                 f"freq_min ({self.freq_min}) muss kleiner als "
                 f"freq_max ({self.freq_max}) sein.")
+        # [config-validation] freq_max, wenn gesetzt, muss > 0 sein
+        if self.freq_max is not None and self.freq_max <= 0:
+            errors.append(f"freq_max muss > 0 sein ({self.freq_max}).")
         # freq_windows validation
         if self.freq_windows is not None:
             if not isinstance(self.freq_windows, (list, tuple)):
@@ -339,6 +342,9 @@ class Config:
                     elif w[0] >= w[1]:
                         errors.append(
                             f"freq_windows[{i}]: lo ({w[0]}) muss < hi ({w[1]}) sein.")
+                    elif w[0] < 0:  # [config-validation] lo >= 0
+                        errors.append(
+                            f"freq_windows[{i}]: lo ({w[0]}) muss >= 0 sein.")
         if self.temp_k is not None and self.temp_k <= 0:
             errors.append(f"temp_k muss positiv sein ({self.temp_k}).")
         if self.interp_step <= 0:
@@ -391,6 +397,18 @@ class Config:
             errors.append("include_hn_vibration muss True or False sein.")
         if self.amplitude_threshold < 0:
             errors.append(f"amplitude_threshold darf not negativ sein.")
+        # [config-validation] amplitude, wenn gesetzt, muss > 0 sein
+        if self.amplitude is not None and self.amplitude <= 0:
+            errors.append(f"amplitude muss > 0 sein ({self.amplitude}).")
+        # [config-validation] significance_threshold_low < high
+        if (getattr(self, "significance_threshold_low", None) is not None
+                and getattr(self, "significance_threshold_high", None) is not None
+                and self.significance_threshold_low
+                    >= self.significance_threshold_high):
+            errors.append(
+                f"significance_threshold_low ({self.significance_threshold_low}) "
+                f"muss kleiner als significance_threshold_high "
+                f"({self.significance_threshold_high}) sein.")
         if self.umap_n_neighbors is not None and self.umap_n_neighbors < 2:
             errors.append(
                 f"umap_n_neighbors muss None or >= 2 sein ({self.umap_n_neighbors}).")
@@ -543,6 +561,43 @@ class Config:
                 isinstance(flat["mode_type_detail_thresholds"], list):
             flat["mode_type_detail_thresholds"] = tuple(
                 float(x) for x in flat["mode_type_detail_thresholds"])
+
+        # [config-coercion] Numerische Skalarfelder koerzieren, damit ein
+        # quotierter TOML-Wert wie freq_max = "800" nicht als str stehen
+        # bleibt und spaeter crasht. Nur koerzieren, wenn Wert nicht None
+        # und ein str/int ist; float-Werte bleiben unveraendert.
+        _float_fields = (
+            "freq_min", "freq_max", "temp_k", "amplitude",
+            "amplitude_threshold", "significance_threshold_low",
+            "significance_threshold_high", "mode_type_threshold",
+            "fe_s_cutoff", "fe_fe_cutoff",
+            "fe_coord_cutoff_n", "fe_coord_cutoff_s", "fe_coord_cutoff_o",
+            "pcet_hbond_cutoff_a", "pcet_acceptor_r0_a", "pcet_acceptor_sigma_a",
+            "reorg_spectrum_sigma_cm1", "reorg_spectrum_step_cm1",
+            "sigma_eigvec", "sigma_coord", "coord_match_tol",
+            "interp_step", "interp_edge_extend", "interp_context_cm1",
+        )
+        _int_fields = ("scan_chunk_mb", "cluster_index", "umap_n_neighbors")
+        for _fn in _float_fields:
+            _val = flat.get(_fn)
+            if _val is not None and isinstance(_val, (str, int)) \
+                    and not isinstance(_val, bool):
+                try:
+                    flat[_fn] = float(_val)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        f"TOML: Feld '{_fn}' muss numerisch sein, "
+                        f"erhalten: {_val!r}.") from exc
+        for _fn in _int_fields:
+            _val = flat.get(_fn)
+            if _val is not None and isinstance(_val, (str, float)) \
+                    and not isinstance(_val, bool):
+                try:
+                    flat[_fn] = int(_val)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        f"TOML: Feld '{_fn}' muss ganzzahlig sein, "
+                        f"erhalten: {_val!r}.") from exc
 
         # Legacy-Parameter from frueheren Versionen ignorieren with Warnung.
         # These key haben in the aktuellen Version keinen Effekt mehr;
@@ -705,7 +760,7 @@ class Config:
             f.write("\n".join(lines) + "\n")
 
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 # v1.0.1: Documentation cleanup release. No code changes — analysis
 # pipeline is identical to v1.0.0 and produces numerically identical
 # results. See CHANGELOG.md for the full list of documentation fixes.

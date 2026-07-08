@@ -13,7 +13,7 @@ Public API
 
   * ``Config``           : Full configuration dataclass.
   * ``run_analysis(cfg)``: Programmatic entry point.
-  * ``__version__``      : Package version (1.0.x).
+  * ``__version__``      : Package version (see config.__version__).
 
 Usage example
 -------------

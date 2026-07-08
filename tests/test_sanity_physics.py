@@ -297,8 +297,23 @@ def test_ha_pure_acceptor_motion_yields_zero():
     r_A = np.array([2.8, 0.0, 0.0])
     n_NA = (r_A - r_N) / np.linalg.norm(r_A - r_N)
     dr_HA = float(np.dot(e_H - e_N, n_NA))
+
+    # Bind to the real HA reaction-coordinate production path
+    # (compute_mode_modulations in reaction-coordinate mode: idx_donor set).
+    from modenanalyse_2fe2s.reorganization import (
+        ChannelGeometry, compute_mode_modulations)
+    e_atoms = np.array([e_H, e_N])          # row 0 = H, row 1 = N (donor)
+    ch = ChannelGeometry(
+        name="HA_test", idx_a=0, idx_b=1,
+        r_a=np.zeros(3), r_b=r_A, elem_a="H", elem_b="O",
+        mu_pair_amu=1.0, parent_channel="HA",
+        idx_donor=1, r_donor=r_N)
+    dr_prod = compute_mode_modulations(e_atoms, 300.0, 1.0, [ch])[0].dr_signed_a
+
     assert abs(dr_HA) < 1e-14, \
         f"Pure acceptor motion gave Δr_HA={dr_HA}, expected 0.0"
+    assert np.isclose(dr_prod, dr_HA, atol=1e-12), \
+        f"Production HA Δr={dr_prod} != inline reference {dr_HA}"
 
 
 def test_ha_pure_h_motion_toward_acceptor_yields_positive():
@@ -312,8 +327,21 @@ def test_ha_pure_h_motion_toward_acceptor_yields_positive():
     n_NA = (r_A - r_N) / np.linalg.norm(r_A - r_N)
     dr_HA = float(np.dot(e_H - e_N, n_NA))
     expected = 0.05
+
+    from modenanalyse_2fe2s.reorganization import (
+        ChannelGeometry, compute_mode_modulations)
+    e_atoms = np.array([e_H, e_N])          # row 0 = H, row 1 = N (donor)
+    ch = ChannelGeometry(
+        name="HA_test", idx_a=0, idx_b=1,
+        r_a=np.zeros(3), r_b=r_A, elem_a="H", elem_b="O",
+        mu_pair_amu=1.0, parent_channel="HA",
+        idx_donor=1, r_donor=r_N)
+    dr_prod = compute_mode_modulations(e_atoms, 300.0, 1.0, [ch])[0].dr_signed_a
+
     assert abs(dr_HA - expected) < 1e-14, \
         f"H toward A by 0.05 A gave Δr_HA={dr_HA}, expected {expected}"
+    assert np.isclose(dr_prod, dr_HA, atol=1e-12), \
+        f"Production HA Δr={dr_prod} != inline reference {dr_HA}"
 
 
 def test_ha_pure_n_motion_toward_acceptor_yields_negative():
@@ -327,8 +355,21 @@ def test_ha_pure_n_motion_toward_acceptor_yields_negative():
     n_NA = (r_A - r_N) / np.linalg.norm(r_A - r_N)
     dr_HA = float(np.dot(e_H - e_N, n_NA))
     expected = -0.05
+
+    from modenanalyse_2fe2s.reorganization import (
+        ChannelGeometry, compute_mode_modulations)
+    e_atoms = np.array([e_H, e_N])          # row 0 = H, row 1 = N (donor)
+    ch = ChannelGeometry(
+        name="HA_test", idx_a=0, idx_b=1,
+        r_a=np.zeros(3), r_b=r_A, elem_a="H", elem_b="O",
+        mu_pair_amu=1.0, parent_channel="HA",
+        idx_donor=1, r_donor=r_N)
+    dr_prod = compute_mode_modulations(e_atoms, 300.0, 1.0, [ch])[0].dr_signed_a
+
     assert abs(dr_HA - expected) < 1e-14, \
         f"N toward A by 0.05 A gave Δr_HA={dr_HA}, expected {expected}"
+    assert np.isclose(dr_prod, dr_HA, atol=1e-12), \
+        f"Production HA Δr={dr_prod} != inline reference {dr_HA}"
 
 
 # =============================================================================
@@ -345,6 +386,20 @@ def test_rss_aggregation_single_subchannel():
     dr_rss = float(np.sqrt(sum(w * dr**2
                                  for w, dr in zip(weights, dr_values))))
     assert abs(dr_rss - abs(dr_values[0])) < 1e-14
+
+    # Bind to the real RSS aggregation (aggregate_by_parent computes
+    # dr_rss_a = sqrt(sum_i w_i * dr_i^2) per parent channel).
+    from modenanalyse_2fe2s.reorganization import (
+        ChannelResult, aggregate_by_parent)
+    r = ChannelResult(
+        name="FeS_Cys207", parent_channel="FeS",
+        dr_signed_a=dr_values[0],
+        lambda_pair_cm1=0.0, lambda_mode_cm1=0.0,
+        weight=weights[0])
+    dr_rss_prod = aggregate_by_parent([r])["FeS"]["dr_rss_a"]
+    assert np.isclose(dr_rss_prod, dr_rss, atol=1e-14), \
+        f"Production dr_rss={dr_rss_prod} != inline reference {dr_rss}"
+    assert np.isclose(dr_rss_prod, abs(dr_values[0]), atol=1e-14)
 
 
 def test_rss_aggregation_two_subchannels_consistency_with_lambda():

@@ -7,11 +7,11 @@
       "affiliation": "AG Sch\u00fcnemann, Department of Physics, RPTU Kaiserslautern-Landau"
     }
   ],
-  "version": "1.1.0",
+  "version": "1.2.0",
   "related_identifiers": [
     {"relation": "isVersionOf", "identifier": "10.5281/zenodo.20074193", "scheme": "doi"}
   ],
-  "publication_date": "2026-06-01",
+  "publication_date": "2026-07-08",
   "license": "GPL-3.0-or-later",
   "upload_type": "software",
   "access_right": "open",

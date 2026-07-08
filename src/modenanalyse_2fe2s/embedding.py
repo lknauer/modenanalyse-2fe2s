@@ -162,8 +162,9 @@ def _auto_mcs(n: int) -> int:
     Heuristik (v3.1): ``max(5, min(30, round(sqrt(n))))``. Die alte
     3-Prozent-Regel war for DFT-Modes to permissiv; for N=1600 lieferte
     sie mcs=48, was for 18-dim Feature-Raeumen to 0 Cluster fuehrt
-    (alles noise). Mit sqrt-Skalierung statt 3% bekommen wir mcs=40
-    for N=1600, with Obergrenze 30 correspond tod 30; the findet bei
+    (alles noise). Mit sqrt-Skalierung statt 3% ergaebe sqrt(1600)=40
+    for N=1600, was aber durch die Obergrenze 30 auf mcs=30 gedeckelt
+    wird (max(5, min(30, round(sqrt(n))))); the findet bei  # [fix minor]
     typicalen DFT-Frequenz-Datensaetzen kleine Mode-Gruppen besser.
     """
     return max(5, min(30, int(round(n ** 0.5))))
@@ -358,9 +359,7 @@ def compute_embeddings(X_b:     np.ndarray,
             except Exception as e:
                 runlog.warn(f"HDBSCAN {method}: {e}")
 
-    return coords, cl_data
-
-    return coords, cl_data
+    return coords, cl_data  # [fix minor]
 
 
 # ===========================================================================
@@ -529,7 +528,7 @@ def compute_sse_umap_cluster(results:     List[Dict],
         from ``characterize_clusters``.
     """
     if not sse_elements:
-        return None, None, [], None, []
+        return None, None, [], None, [], {}  # [fix M7]
 
     sse_names = [e["name"] for e in sse_elements]
     # v1.0.5: metric names come from the single source of truth in core
@@ -556,10 +555,13 @@ def compute_sse_umap_cluster(results:     List[Dict],
             runlog.warn(msg)
         else:
             print(f"    {msg}")
-        return None, None, [], None, []
+        return None, None, [], None, [], {}  # [fix M7]
 
     feat_names = [f"{sn}_{m}" for sn in sse_names for m in metrics]
     X = np.array(rows, dtype=float)
+    # [fix minor] Mirror the Ca path: scrub any residual NaN/inf before
+    # computing mean/std so a stray NaN cannot poison X_norm.
+    X = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
     mu = X.mean(0, keepdims=True)
     sg = X.std(0, keepdims=True); sg[sg < 1e-12] = 1.
     X_norm = (X - mu) / sg
@@ -598,8 +600,13 @@ def compute_sse_umap_cluster(results:     List[Dict],
     cluster_chars: dict = {}
     _cids_sse = sorted(k for k in set(labels) if k >= 0)
     if _cids_sse and X_norm is not None:
+        # [fix M7] characterize_clusters expects results indexed the same way
+        # as the rows of X_norm/labels — i.e. only the valid (SSE) modes.
+        # Passing the full results list pulled modes positionally and mislabeled
+        # cluster identities whenever any mode lacked SSE data.
+        results_valid = [results[i] for i in valid_idx]
         cluster_chars, _ = characterize_clusters(
-            Z2d, labels, X_norm, feat_names, results)
+            Z2d, labels, X_norm, feat_names, results_valid)
 
     return Z2d, full_labels, feat_names, X_norm, valid_idx, cluster_chars
 
@@ -759,4 +766,4 @@ def compute_ca_umap_cluster(results: List[Dict],
     return Z2d_full, full_labels, feat_names, X_norm, valid_idx, cluster_chars
 
 
-__version__ = "1.1.0"  # kept in sync with package version (see config.py)
+__version__ = "1.2.0"  # kept in sync with package version (see config.py)

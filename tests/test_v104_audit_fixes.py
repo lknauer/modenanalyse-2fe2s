@@ -146,36 +146,66 @@ def test_scsd_sigmas_use_cfg():
     """SCSD reference and distortion sigmas must scale with the
     sigma_coord / sigma_eigvec arguments. Pre-v1.0.4 they were
     hardcoded as 5e-7 and 5e-6 and ignored cfg."""
-    from modenanalyse_2fe2s.core import compute_scsd_for_mode_full
+    from modenanalyse_2fe2s.core import (
+        compute_scsd_for_mode_full, _get_scsd_model)
 
-    pts_ref  = np.array([[ 1., 0., 0.], [-1., 0., 0.],
-                         [ 0., 1., 0.], [ 0.,-1., 0.]])
+    # [fix scsd] Use the REAL scsdpy model (the SCSD port is now functional).
+    # Skip cleanly only if scsdpy is not installed / model creation fails.
+    model = _get_scsd_model()
+    if model is None:
+        pytest.skip("scsdpy not installed / SCSD model unavailable")
+
+    # Kanonische Referenzgeometrie (Fe1, Fe2, S1, S2), leicht ausgelenkt.
+    pts_ref  = np.array([[-1.365, 0., 0.], [ 1.365, 0., 0.],
+                         [ 0., 1.724, 0.], [ 0.,-1.724, 0.]])
     pts_dist = pts_ref + 0.01 * np.array([[1., 0., 0.], [-1., 0., 0.],
                                             [0., 1., 0.], [0.,-1., 0.]])
-    # Run SCSD with a dummy model that just returns identity
-    class _DummyModel:
-        def project(self, pts):
-            return {"Ag": float(np.sum(pts**2)), "B1g": 0.0}
-    # The real SCSD model interface might differ; rather than risk a
-    # mismatch, we test the sigma values DIRECTLY by examining outputs.
-    # If the model is incompatible, the function may raise — we
-    # tolerate and skip in that case.
-    try:
-        r1 = compute_scsd_for_mode_full(pts_ref, pts_dist, _DummyModel(),
-                                          u_rms=0.05,
-                                          sigma_coord=1e-3, sigma_eigvec=5e-4)
-        r2 = compute_scsd_for_mode_full(pts_ref, pts_dist, _DummyModel(),
-                                          u_rms=0.05,
-                                          sigma_coord=2e-3, sigma_eigvec=5e-4)
-    except Exception:
-        pytest.skip("Dummy SCSD model not compatible with internal API")
 
-    # s_geo_ref = sqrt(2) * sigma_coord  → doubling sigma_coord doubles it
-    irr_keys = [k for k in r1.keys() if k.startswith("s_SCSD_") and k.endswith("_ref")]
-    if irr_keys:
-        k = irr_keys[0]
-        assert abs(r2[k] / r1[k] - 2.0) < 1e-9, \
-            f"s_SCSD_*_ref ratio = {r2[k]/r1[k]} (expected 2.0)"
+    r1 = compute_scsd_for_mode_full(pts_ref, pts_dist, model,
+                                    u_rms=0.05,
+                                    sigma_coord=1e-3, sigma_eigvec=5e-4)
+    r2 = compute_scsd_for_mode_full(pts_ref, pts_dist, model,
+                                    u_rms=0.05,
+                                    sigma_coord=2e-3, sigma_eigvec=5e-4)
+
+    # s_geo_ref = sqrt(2) * sigma_coord  → doubling sigma_coord doubles it.
+    irr_keys = [k for k in r1.keys()
+                if k.startswith("s_SCSD_") and k.endswith("_ref")]
+    assert irr_keys, ("SCSD lieferte keine s_SCSD_*_ref-Sigmas — "
+                      "SCSD-Zerlegung nicht funktionsfaehig?")
+    k = irr_keys[0]
+    assert abs(r2[k] / r1[k] - 2.0) < 1e-9, \
+        f"s_SCSD_*_ref ratio = {r2[k]/r1[k]} (expected 2.0)"
+
+
+def test_scsd_symmetric_breathing_is_totally_symmetric():
+    """[fix scsd] Physik-Validierung: eine rein symmetrische Atmungs-
+    Auslenkung des [2Fe-2S]-Kerns projiziert auf das totalsymmetrische
+    D2h-Irrep (Ag); alle ungeraden/anderen Irreps bleiben ~0. Faengt einen
+    Regress der SCSD-Portierung (stiller No-op / falsche Eingabekonvention)."""
+    from modenanalyse_2fe2s.core import (
+        compute_scsd_for_mode_full, _get_scsd_model)
+
+    model = _get_scsd_model()
+    if model is None:
+        pytest.skip("scsdpy not installed / SCSD model unavailable")
+
+    pts_ref = np.array([[-1.365, 0., 0.], [ 1.365, 0., 0.],
+                        [ 0., 1.724, 0.], [ 0.,-1.724, 0.]])
+    # Symmetrische Atmung: alle vier Atome radial nach aussen.
+    breath = np.array([[-1., 0., 0.], [ 1., 0., 0.],
+                       [ 0., 1., 0.], [ 0.,-1., 0.]])
+    pts_dist = pts_ref + 0.06 * breath
+
+    out = compute_scsd_for_mode_full(pts_ref, pts_dist, model, u_rms=1.0)
+    assert out.get("scsd_primary") == "Ag", \
+        f"Atmung sollte Ag-dominiert sein, ist {out.get('scsd_primary')}"
+    d_ag = abs(out.get("SCSD_dAg", 0.0))
+    assert d_ag > 1e-3, f"SCSD_dAg zu klein ({d_ag}) — SCSD inaktiv?"
+    # Ungerade Irreps praktisch null.
+    for irr in ("B1u", "B2u", "B3u", "Au"):
+        assert abs(out.get(f"SCSD_d{irr}", 0.0)) < 1e-2, \
+            f"SCSD_d{irr} = {out.get(f'SCSD_d{irr}')} sollte ~0 sein"
 
 
 # =============================================================================
@@ -437,8 +467,25 @@ def test_torsion_loop_robust_to_c2l_gaps():
     torsion numerics are tested elsewhere.
     """
     from modenanalyse_2fe2s.core import analyze_mode_with_fallback
+    from modenanalyse_2fe2s.config import Config
+
+    # Bind to the real production function: with no candidate blocks it
+    # must honour its documented contract -- return (None, reason) with a
+    # non-empty reason string and WITHOUT crashing. This exercises the
+    # actual production entry point (previously imported but never
+    # called). The candidate loop is never entered, so coord_info et al.
+    # are irrelevant here.
+    cfg = Config(log_file="dummy.log")
+    result, reason = analyze_mode_with_fallback(
+        candidates=[], col=0, filepath="", atoms=[], idx_map={},
+        normal=np.array([0., 0., 1.]), coord_info=None,
+        fe_c=[], s_c=[], cfg=cfg)
+    assert result is None, "No candidates must yield a None result"
+    assert isinstance(reason, str) and reason, \
+        f"Expected a non-empty reason string, got {reason!r}"
+
     # This is hard to set up at unit level — analyze_mode is deep in
-    # the pipeline. Instead we simulate the inner loop directly with
+    # the pipeline. Additionally we simulate the inner loop directly with
     # a focused test: build a 3-center group where c2l drops center #2.
 
     gctr = [10, 20, 30]
@@ -525,9 +572,11 @@ def test_pdb_matching_warns_on_high_ambiguity():
     """If more than 5% of PDB atoms have multiple Gaussian candidates
     within tolerance, find_coordinating_residues must emit a UserWarning
     suggesting that coord_match_tol be tightened."""
-    # We can't easily call find_coordinating_residues directly (too many
-    # dependencies), so we test the warning logic by simulating the
-    # exact condition in isolation — n_ambiguous > 5% of n_pdb_heavy.
+    # TODO(review): still tautological — could not bind to production fn
+    # safely. The warning lives inside geometry.find_coordinating_residues,
+    # which requires a full PDB<->Gaussian atom-matching setup (heavy
+    # fixtures); re-creating it would fabricate inputs. Left as an
+    # isolated logic check of the >5% ambiguity threshold.
     n_pdb_heavy = 100
     n_ambiguous = 10                       # = 10% > 5% threshold
     ambig_pct = 100.0 * n_ambiguous / n_pdb_heavy
@@ -551,6 +600,8 @@ def test_pdb_matching_warns_on_high_ambiguity():
 
 def test_pdb_matching_no_warning_for_low_ambiguity():
     """At 3% ambiguity (below the 5% threshold) NO warning."""
+    # TODO(review): still tautological — could not bind to production fn
+    # safely (same reason as test_pdb_matching_warns_on_high_ambiguity).
     n_pdb_heavy = 100
     n_ambiguous = 3
     ambig_pct = 100.0 * n_ambiguous / n_pdb_heavy
@@ -576,6 +627,11 @@ def test_window_boundaries_are_half_open():
     (0, 100) and (100, 300). The fix makes intervals half-open [lo, hi)
     except for the very last window.
     """
+    # TODO(review): still tautological — could not bind to production fn
+    # safely. The half-open window filter is inline inside
+    # runner._run_multi_window (lines ~1364-1388), not a separable helper;
+    # exercising it needs the full multi-window export pipeline. Left as an
+    # isolated re-implementation of the [lo, hi) binning logic.
     # Simulate the v1.0.4 filter logic:
     results = [
         {"freq": 50.0},     # window 0
@@ -782,6 +838,12 @@ def test_pcet_decision_distinguishes_no_his_from_deprotonated_his():
     from modenanalyse_2fe2s.geometry import LigandInfo
     import numpy as np
 
+    # NOTE: LigandInfo construction below is real production. The His-count
+    # is re-derived because the no-His-vs-deprotonated branch is inline in
+    # runner (lines ~678-701), not a separable callable.
+    # TODO(review): partial — LigandInfo path is real; the message-decision
+    # branch itself could not be bound without the full runner pipeline.
+
     def _lig(label, name, elem, ctr, fe=1):
         return LigandInfo(
             fe_idx=0, fe_center=fe,
@@ -825,6 +887,14 @@ def test_interp_no_context_warning_suppressed_when_no_window():
     """
     from modenanalyse_2fe2s.config import Config
 
+    # NOTE: the Config construction + default/mutation assertions below
+    # DO exercise production (Config). The `_user_set_window` boolean is
+    # re-derived here because the actual warning-suppression guard is a
+    # local inside export._build_interp (lines ~784-793), not a separable
+    # callable.
+    # TODO(review): partial — Config path is real; the warning-suppression
+    # branch itself could not be bound without the full export pipeline.
+
     # Construct a default Config and assert the boundary detection
     cfg = Config(log_file="dummy.log")
     # default: all three are None
@@ -855,7 +925,24 @@ def test_report_includes_freq_windows():
     showed freq_min/freq_max ('- - - cm-1') even when freq_windows
     was actively used, hiding crucial config from the audit trail.
     """
-    # Build the windows-string the report-generator should produce
+    # Independent reference: the windows-string the report should contain.
     fw = [(0.0, 100.0), (100.0, 300.0), (300.0, 500.0)]
     fw_str = ", ".join(f"[{lo:.0f}-{hi:.0f}]" for lo, hi in fw)
     assert fw_str == "[0-100], [100-300], [300-500]"
+
+    # Bind to the real report generator (RunLogger.write_befund) and
+    # assert the produced REPORT text actually lists the freq_windows.
+    import tempfile, os
+    from modenanalyse_2fe2s.config import Config
+    from modenanalyse_2fe2s.logio import RunLog
+
+    cfg = Config(log_file="dummy.log")
+    cfg.freq_windows = fw
+    rl = RunLog(cfg)
+    with tempfile.TemporaryDirectory() as td:
+        report_path = os.path.join(td, "REPORT.txt")
+        rl.write_befund(report_path)
+        text = Path(report_path).read_text(encoding="utf-8")
+
+    assert f"freq_windows: {fw_str} cm-1" in text, \
+        f"REPORT.txt did not list freq_windows; got:\n{text}"

@@ -249,14 +249,24 @@ def lambda_pair_cm1(dr_a: float, omega_cm1: float, mu_amu: float) -> float:
     Formel:
         lambda = (1/2) mu omega^2 (dr)^2
 
-    For thermisch scaleden dr-valuesn (e_atoms = e_normalized * u_rms,
-    default convention in the Aufrufer compute_mode_modulations) is das
-    the QHO-Erwartungswert the bond length-fluctuation energy
-    per Mode. Aufsummiert summed over all modes gives the thermal
-    bond reorganization energy the bond -- eine
-    spektroskopische Observable, the with the klassischen Marcus-Hush-
-    reorganization energy verwandt but not identical ist
-    (see module docstring).
+    # [fix docs] Honest mass-convention note (was: over-claiming that
+    # lambda_pair is *the* QHO expectation value per mode).
+    Mass-convention caveat: the incoming ``dr_a`` is thermally scaled in
+    the caller (compute_mode_modulations) using the MODE reduced mass
+    ``u_rms(mu_mode)``. When this function is invoked with the BOND
+    reduced mass ``mu_pair`` (the per-pair ``lambda_pair`` path), the
+    amplitude and the mass belong to two different conventions, so the
+    result carries a spurious factor ``mu_pair / mu_mode`` (most visible
+    at low T). Therefore ``lambda_pair`` is a bond-specific *diagnostic*
+    quantity only and differs from a true isolated-oscillator energy by
+    that mass ratio; it is NOT the QHO expectation value of the
+    bond-length fluctuation energy per mode. The physically consistent
+    aggregation uses ``lambda_mode`` (evaluated with the MODE reduced
+    mass ``mu_mode``, matching the amplitude convention), which is
+    unaffected by this caveat. Summed over all modes it gives the thermal
+    bond reorganization energy -- a spektroskopische Observable, related
+    to but not identical with the classical Marcus-Hush reorganization
+    energy (see module docstring).
 
     Parameters
     ----------
@@ -280,6 +290,10 @@ def lambda_pair_cm1(dr_a: float, omega_cm1: float, mu_amu: float) -> float:
     omega_si = 2.0 * np.pi * _C_CMS * omega_cm1
     mu_si = mu_amu * _AMU_KG
     dq_si = dr_a * 1.0e-10
+    # [fix M2] Mass-convention caveat: dr_a is thermally scaled with the
+    # MODE reduced mass in the caller. If mu_amu here is the BOND reduced
+    # mass (mu_pair), the result carries a spurious factor mu_pair/mu_mode
+    # and is a diagnostic only. Aggregation uses lambda_mode (mode mass).
     e_joule = 0.5 * mu_si * omega_si**2 * dq_si**2
     return float(e_joule / _HC_JCM)
 
@@ -556,7 +570,11 @@ def build_channels(
     acceptors_per_h: Sequence[Sequence[int]],
     acceptor_elem_per_h: Sequence[Sequence[str]],
     eq_distances_per_h: Sequence[Sequence[float]],
-    acceptor_r0_a: float = 2.8,
+    # [fix M4] Gaussian center for H...A distances (NOT heavy-atom D-A).
+    # eq_distances_per_h holds H...acceptor distances (~1.8-2.0 A for a
+    # real H-bond), so center on 1.9 A. Was 2.8 A, which let a weak long
+    # contact win the argmax over a strong short H-bond.
+    acceptor_r0_a: float = 1.9,
     acceptor_sigma_a: float = 0.4,
 ) -> List[ChannelGeometry]:
     """Baut the Liste aller bond channels for ein System.
@@ -973,7 +991,8 @@ def build_channels_from_coord_info(
     atoms_h: List[Dict],
     idx_map_h: Dict[int, int],
     *,
-    acceptor_r0_a: float = 2.8,
+    # [fix M4] Center on H...A distance (~1.9 A), not heavy-atom D-A (2.8 A).
+    acceptor_r0_a: float = 1.9,
     acceptor_sigma_a: float = 0.4,
 ) -> List[ChannelGeometry]:
     """High-Level-Adapter: extrahiert alles, was wir brauchen, direkt aus

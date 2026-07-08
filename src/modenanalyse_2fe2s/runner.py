@@ -268,11 +268,15 @@ def _run_analysis_single(cfg: "Config") -> int:
     runlog = RunLog(cfg)
     t_start = time.time()
 
-    def _abort(msg: str = "") -> None:
-        """Writes BEFUND and beendet the Programm with Exit-Code 1.
+    def _abort(msg: str = "") -> int:  # [fix K1]
+        """Writes BEFUND and returns Exit-Code 1.
 
         Stellt sicher dass also for fruehen Errorabbruechen
         a BEFUND-file for the Errordiagnose present ist.
+
+        [fix K1] Returns 1 (statt sys.exit(1)) damit ein fehlschlagender
+        Cluster im Multi-Cluster-Loop nicht den ganzen Prozess beendet.
+        Alle Aufrufstellen MUESSEN ``return _abort(...)`` verwenden.
         """
         if msg:
             runlog.error(msg)
@@ -289,14 +293,14 @@ def _run_analysis_single(cfg: "Config") -> int:
             print(f"  REPORT written: {befund_err}")
         except Exception as _be:
             print(f"  [WARNING] REPORT could not be written: {_be}")
-        sys.exit(1)
+        return 1  # [fix K1] return statt sys.exit(1)
 
     # ── Konfiguration validieren ──────────────────────────────────────────
     errs = cfg.validate()
     if errs:
         print("\n[ERROR] Configuration invalid:")
         for e in errs: print(f"  - {e}")
-        _abort()
+        return _abort()  # [fix K1]
 
     # Reset per-run warning state (so warnings.warn() in analyze_mode is
     # emitted at least once per run even when run_analysis() is called
@@ -347,7 +351,7 @@ def _run_analysis_single(cfg: "Config") -> int:
             _orca_pr = load_orca_hess(cfg.log_file)
         except Exception as exc:
             runlog.error(f"Error reading ORCA .hess: {exc}")
-            _abort()
+            return _abort()  # [fix K1]
         runlog.info(f"ORCA: {_orca_pr.n_atoms} atoms, {_orca_pr.n_modes} modes")
         print(f"    {_orca_pr.n_atoms} atoms, {_orca_pr.n_modes} modes loaded")
 
@@ -368,8 +372,8 @@ def _run_analysis_single(cfg: "Config") -> int:
             print(f"    SO: {len(so_off)}  NC: {len(nc_off)}  "
                   f"Freq groups: {len(fr_off)}")
 
-        if not so_off: runlog.error("Keine 'Standard orientation' found."); _abort()
-        if not fr_off: runlog.error("No frequency blocks found.");        _abort()
+        if not so_off: runlog.error("Keine 'Standard orientation' found."); return _abort()  # [fix K1]
+        if not fr_off: runlog.error("No frequency blocks found.");        return _abort()  # [fix K1]
 
     # ── Phase 2: Geometrie ────────────────────────────────────────────────
     print("\n  Phase 2: geometry...")
@@ -434,7 +438,7 @@ def _run_analysis_single(cfg: "Config") -> int:
         try:
             fe_c, s_c = find_cluster(atoms, cfg)
         except ValueError as e:
-            runlog.error(f"Cluster detection: {e}"); _abort()
+            runlog.error(f"Cluster detection: {e}"); return _abort()  # [fix K1]
     for _w in _caught_warnings:
         runlog.warn(f"Cluster-Geometry: {_w.message}")
 
@@ -520,7 +524,7 @@ def _run_analysis_single(cfg: "Config") -> int:
                    f"(2.40-3.10 A). Cluster detection pruefen.")
             if cfg.strict_cluster:
                 runlog.error(msg + " [strict_cluster=True: Abbruch]")
-                _abort()
+                return _abort()  # [fix K1]
             else:
                 runlog.warn(msg)
 
@@ -759,7 +763,7 @@ def _run_analysis_single(cfg: "Config") -> int:
                 print(f"    Cache gespeichert")
                 runlog.info("Cache written (full scan gecacht)")
     if not best_block:
-        runlog.error("No modes found."); _abort()
+        runlog.error("No modes found."); return _abort()  # [fix K1]
 
     # HP/Standard-Frequenz-Konsistenzcheck (Hardening v3.0, Punkt 11):
     # If beide Block-Typen present sind, muessen the Frequenzen exakt
@@ -828,13 +832,15 @@ def _run_analysis_single(cfg: "Config") -> int:
                 runlog.add_parse_failure(mn, freq,
                     f"imaginary/zero ({freq:.3f} cm-1), skipped")
                 continue
-            # Hardening v3.1: Frequenzfilter gilt jetzt immer (auch im
-            # Multi-window-Modus). For NRVS-Messbereich bis ~800 cm-1 und
-            # verschwindend kleinen Fe-projizierten Beicontribute daruber sind
-            # Modes outside of the analysierten Bereichs without Mehrwert; sie
-            # auszurechnen kostet only Laufzeit (typ. -70% for freq_max=500).
-            if cfg.freq_min is not None and freq < cfg.freq_min: continue
-            if cfg.freq_max is not None and freq > cfg.freq_max: continue
+            # [fix M9a] Der globale freq_min/freq_max-Filter gilt NUR im
+            # Single-Window-Modus. Im Multi-window-Modus werden freq_min/
+            # freq_max laut Config-Doku ignoriert -- sonst wuerden Modes
+            # verworfen, die ein Fenster explizit angefordert hat. Die
+            # Fenster-Filterung (unten) uebernimmt dann die Auswahl. Der
+            # freq <= 0-Drop (imaginaere Moden) bleibt in beiden Modi aktiv.
+            if not _multi_window:
+                if cfg.freq_min is not None and freq < cfg.freq_min: continue
+                if cfg.freq_max is not None and freq > cfg.freq_max: continue
             if _multi_window:
                 if not any(lo <= freq <= hi for (lo, hi) in cfg.freq_windows):
                     continue
@@ -842,7 +848,7 @@ def _run_analysis_single(cfg: "Config") -> int:
     selected.sort(key=lambda x: x[3])
     print(f"    After filter: {len(selected)} Moden")
     if not selected:
-        runlog.error("No modes after filter."); _abort()
+        runlog.error("No modes after filter."); return _abort()  # [fix K1]
 
     # Modenanzahl-Pruefung
     n_heavy = len(atoms); n_found = len(best_block)
@@ -965,7 +971,7 @@ def _run_analysis_single(cfg: "Config") -> int:
           f"(HP: {n_hp}, standard fallback: {n_std}, "
           f"failed: {n_fail}).")
     if not results:
-        runlog.error("All modes failed."); _abort()
+        runlog.error("All modes failed."); return _abort()  # [fix K1]
 
     # Debye-Waller-Faktoren finalisieren
     # B_i = 8π^2 * Σ_l u_rms(l)^2 * |e_{i,l}|^2 / 3  [A^2]
@@ -1284,6 +1290,11 @@ def _run_analysis_single(cfg: "Config") -> int:
 
         ges_cfg = _copy.copy(cfg)
         ges_cfg.freq_windows = None     # einmaliger Single-Window-Export
+        # [fix M9b] freq_min/freq_max ebenfalls loeschen, sonst haengt
+        # Config.outdir() ein freq_label-Subdir (z.B. "0-800_cm-1/") an und
+        # die Gesamtauswertung landet nicht im output_dir-Top-Level.
+        ges_cfg.freq_min = None
+        ges_cfg.freq_max = None
 
         # Embeddings over alle Modes
         print(f"    Embeddings ({len(results)} Moden)...")
@@ -1706,7 +1717,9 @@ def run_analysis(cfg: "Config") -> int:
             status = "OK" if rc == 0 else f"FAILED (rc={rc})"
             if rc != 0:
                 overall_status = 1
-        except Exception as e:
+        except KeyboardInterrupt:  # [fix K1] Ctrl-C soll den Prozess beenden
+            raise
+        except BaseException as e:  # [fix K1] auch SystemExit abfangen, Loop fortsetzen
             status = f"EXCEPTION: {type(e).__name__}: {e}"
             overall_status = 1
         summaries.append((cl_idx, sub_outdir, status,

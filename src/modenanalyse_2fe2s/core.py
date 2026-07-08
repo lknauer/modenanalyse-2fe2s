@@ -789,6 +789,30 @@ def _atom_mass(sym: Optional[str]) -> float:
     return _ATOMIC_MASS.get(str(sym).strip().upper(), 12.011)
 
 
+def _atom_mass_of(a: Dict) -> float:
+    """Mass (u) for an atom dict used in mass-weighting.
+
+    [fix M10] Prefer a real per-atom mass reported by the QM program when
+    present (ORCA stores ``mass_amu``; the Gaussian path attaches
+    ``mass_amu`` from the thermochemistry block, see logio). Fall back to
+    the standard atomic weight keyed on the element symbol otherwise. This
+    routes the ORCA/Gaussian paths through the QM masses (typically a
+    ~0.1-0.3 % shift, larger with isotopes) instead of the symbol table.
+    """
+    if isinstance(a, dict):
+        for key in ("mass_amu", "mass"):
+            val = a.get(key)
+            if val is not None:
+                try:
+                    m = float(val)
+                except (TypeError, ValueError):
+                    continue
+                if m > 0.0:
+                    return m
+        return _atom_mass(a.get("symbol"))
+    return _atom_mass(a)
+
+
 def _principal_axis(coords: np.ndarray) -> np.ndarray:
     """Unit vector along the largest-variance direction of ``coords``.
 
@@ -870,7 +894,7 @@ def analyze_sse_element(evg:        np.ndarray,
         xyz = [a["x"], a["y"], a["z"]]
         valid_rows.append(row)
         valid_coords.append(xyz)
-        valid_mass.append(_atom_mass(a.get("symbol")))
+        valid_mass.append(_atom_mass_of(a))  # [fix M10] prefer QM mass
         coord_by_center[ctr] = xyz
 
     if not valid_rows:
@@ -1500,7 +1524,7 @@ def analyze_mode(bi:          BlockInfo,
         # not the centre of mass). evg_cl rows correspond 1:1, in order, to
         # the centres [c for c in (fe_c + s_c) if c in c2l] (see _evg_sub).
         _cl_ctr = [c for c in (fe_c + s_c) if c in c2l]
-        _cl_m   = np.array([_atom_mass(atoms[idx_map[c]].get("symbol"))
+        _cl_m   = np.array([_atom_mass_of(atoms[idx_map[c]])  # [fix M10] prefer QM mass
                             if c in idx_map else 12.011 for c in _cl_ctr])
         cl_com  = float(np.linalg.norm(
             (_cl_m[:, None] * evg_cl).sum(0) / _cl_m.sum()))
@@ -1662,9 +1686,12 @@ def analyze_mode(bi:          BlockInfo,
             classify_kernel_mode_from_evg(
                 evg_4x3, atoms, idx_map, fe_c, s_c, normal)
 
-    # Kern-Lokalisierungsgrad: Fraction the Quadratsumme in the [2Fe-2S]-Kern
-    # (= Fraction the kinetischen energy for mass-weighted Cartesian Eigenvektoren)
-    # value 0.0 = no Kern-Lokalisierung, 1.0 = vollständig in the Kern
+    # [fix M8] Kern-Lokalisierungsgrad. HONEST label: this is the fraction of
+    # the summed squared Cartesian displacement (NOT mass-weighted; hydrogen
+    # excluded, because evg is read with include_hydrogen=False) that is
+    # localized on the [2Fe-2S] cluster-core atoms. It is NOT a kinetic-energy
+    # fraction (that would require mass weighting). Value 0.0 = no core
+    # localization, 1.0 = fully on the core. Numeric value unchanged.
     kern_loc = 0.0
     for _kc in (fe_c + s_c):
         _kli = c2l.get(_kc)
@@ -1942,6 +1969,22 @@ _SCSD_MODEL_COORDS: np.ndarray = np.array([
     [  0.,       -_SCSD_D_S, 0.],   # S2
 ], dtype=float)
 
+#: [fix scsd] Elementreihenfolge der vier Clusteratome (passend zu
+#: _SCSD_MODEL_COORDS und den pts_ref/pts_dist-Argumenten). scsdpy erwartet
+#: pro Atom eine (x, y, z, element)-Zeile (siehe scsd.import_pdb /
+#: scsd_matrix.__init__), nicht reine (n, 3)-Koordinaten.
+_SCSD_ELEMS: tuple = ("Fe", "Fe", "S", "S")
+
+
+def _scsd_ats_nx4(coords_4x3: np.ndarray) -> np.ndarray:
+    """[fix scsd] Baut das von scsdpy erwartete (4, 4)-Array
+    ``[x, y, z, element]`` (Element als String) aus (4, 3)-Koordinaten."""
+    c = np.asarray(coords_4x3, dtype=float)
+    return np.array(
+        [[c[i, 0], c[i, 1], c[i, 2], _SCSD_ELEMS[i]] for i in range(4)],
+        dtype=object,
+    )
+
 
 def _get_scsd_model(_dist_ref_unused: Dict = None) -> Optional[object]:
     """Creates the D2h-Referenzmodell for the SCSD-Zerlegung.
@@ -1974,15 +2017,15 @@ def _get_scsd_model(_dist_ref_unused: Dict = None) -> Optional[object]:
         import warnings; warnings.warn(f"SCSD-Import: {e}", UserWarning)
         return None
 
+    # [fix scsd] scsdpy (>=0.1.1) erwartet ein (n, 4)-Array [x, y, z, element].
+    # Frueher wurde (4, 3) uebergeben -> scsd_model/scsd_matrix schlugen fehl
+    # und die gesamte SCSD-Zerlegung war ein stiller No-op.
+    model_ats = _scsd_ats_nx4(_SCSD_MODEL_COORDS)
     try:
-        return _scsd_model_cls("2Fe2S_canonical", _SCSD_MODEL_COORDS, "D2h")
+        return _scsd_model_cls("2Fe2S_canonical", model_ats, "D2h")
     except Exception as e:
-        # Fallback: Modell without Namen versuchen
-        try:
-            return _scsd_model_cls(_SCSD_MODEL_COORDS, "D2h")
-        except Exception:
-            import warnings; warnings.warn(f"SCSD model: {e}", UserWarning)
-            return None
+        import warnings; warnings.warn(f"SCSD model: {e}", UserWarning)
+        return None
 
 
 def _parse_scsd_result(mat: List) -> Dict[str, float]:
@@ -2014,67 +2057,42 @@ def _parse_scsd_result(mat: List) -> Dict[str, float]:
 
 
 def _run_scsd(coords_4x3: np.ndarray, model: Optional[object]) -> Dict[str, float]:
-    """
-    Performs SCSD-Analyse durch.
-    Versucht mehrere API-Formate for Kompatibilitaet with differenten scsdpy-Versionen.
-    Bein the first Error is a einmalige Diagnose ausgiven.
+    """Performs the SCSD-Analyse durch.
+
+    [fix scsd] Portiert auf die scsdpy-API (>=0.1.1): ``scsd_matrix`` erwartet
+    ein (n, 4)-Array ``[x, y, z, element]`` und liefert nach ``calc_scsd`` in
+    ``sm.scsd_matrix`` eine Liste ``[irrep_name, magnitude_A, dev_mat, ...]``
+    pro D2h-Irrep (Ag, B1g, B2g, B3g, Au, B1u, B2u, B3u) plus einer
+    Abschlusszeile "Atom Posits Data".
+
+    Determinismus: ``bhopping=False`` mit fixen Startparametern -> reproduzierbar.
+    Fehler werden einmalig als Warnung ausgegeben; Rueckgabe ist dann ``{}``
+    (SCSD-Sheets bleiben leer, statt harten Abbruch).
     """
     try:
         from scsd.scsd import scsd_matrix
-
-        ats4 = [("Fe", tuple(coords_4x3[0])),
-                ("Fe", tuple(coords_4x3[1])),
-                ("S",  tuple(coords_4x3[2])),
-                ("S",  tuple(coords_4x3[3]))]
-
-        # Verschiedene Initialisierungsformate versuchen
-        sm = None
-        last_err = None
-        for args, kwargs in [
-            ([ats4],                    {"model": model}),   # Standard
-            ([ats4, model],             {}),                  # Ohne Keyword
-            ([np.array(coords_4x3)],   {"model": model}),   # Nur Koordinaten
-        ]:
-            try:
-                sm = scsd_matrix(*args, **kwargs); break
-            except Exception as e:
-                last_err = e; continue
-
-        if sm is None:
-            raise RuntimeError(f"scsd_matrix initialization failed: {last_err}")
-
-        # calc_scsd with and without arguments versuchen
-        calc_ok = False
-        for kwargs in [{"bhopping": False}, {}, {"by_graph": True}]:
-            try:
-                sm.calc_scsd(**kwargs); calc_ok = True; break
-            except Exception as e:
-                last_err = e; continue
-
-        if not calc_ok:
-            raise RuntimeError(f"calc_scsd failed: {last_err}")
-
-        # Ergebnis from scsd_matrix or simple_scsd lesen
-        for attr in ["scsd_matrix", "simple_scsd", "result"]:
-            mat = getattr(sm, attr, None)
-            if mat is not None:
-                result = _parse_scsd_result(mat)
-                if result:
-                    return result
-
-        # Einmalige Diagnostik if nichts funktioniert hat
-        if not getattr(_run_scsd, "_diag_done", False):
-            _run_scsd._diag_done = True
-            attrs = [a for a in dir(sm) if not a.startswith("_")]
-            import warnings; warnings.warn(f"SCSD-Diagnose: verfuegbare Attribute: {attrs}", UserWarning)
+    except ImportError:
+        return {}
+    except Exception as e:
+        if not getattr(_run_scsd, "_shown", False):
+            _run_scsd._shown = True
+            import warnings; warnings.warn(f"SCSD-Import: {e}", UserWarning)
         return {}
 
+    try:
+        input_ats = _scsd_ats_nx4(coords_4x3)          # (4, 4) [x,y,z,element]
+        sm = scsd_matrix(input_ats, model=model, ptgr="D2h")
+        sm.calc_scsd(bhopping=False)                    # deterministisch
+        return _parse_scsd_result(getattr(sm, "scsd_matrix", None))
     except Exception as e:
         err = str(e)
         if not getattr(_run_scsd, "_shown", False):
             _run_scsd._shown = True
-            import warnings; warnings.warn(f"SCSD Error: {err[:200]}", UserWarning)
-            import warnings; warnings.warn("SCSD Note: pip install --upgrade scsdpy", UserWarning)
+            import warnings
+            warnings.warn(f"SCSD Error: {err[:200]}", UserWarning)
+            warnings.warn(
+                "SCSD Note: scsdpy-API inkompatibel; pruefe die installierte "
+                "scsdpy-Version (getestet mit 0.1.1).", UserWarning)
         return {}
 
 
@@ -2275,4 +2293,4 @@ def extract_dominant_scsd_irreps(scsd_dict: Dict) -> Tuple[str, str, Dict[str, f
     return primary, secondary, contributions
 
 
-__version__ = "1.4"  # modenanalyse v1.4
+__version__ = "1.2.0"  # kept in sync with package version (config.__version__)

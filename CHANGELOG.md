@@ -5,6 +5,99 @@ All notable changes to `modenanalyse_2fe2s` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] — 2026-07-08
+
+Result of a full critical audit of the package (physics correctness + code
+robustness). Several items **change numerical output** and are flagged below;
+after adopting these, re-validate headline reorganization numbers.
+
+### Fixed (correctness / robustness)
+
+- **SCSD symmetry decomposition restored.** The `scsdpy` integration was a
+  silent no-op against the published `scsdpy` (0.1.1): the reference model and
+  per-mode geometry were passed as `(n,3)` float / list-of-tuples arrays, but
+  `scsd_matrix`/`scsd_model` require an `(n,4)` `[x,y,z,element]` array — so
+  every SCSD sheet came out empty. The input is now built in the correct
+  format and `calc_scsd(bhopping=False)` runs deterministically; the `SCSD`
+  sheet is populated again (D2h irreps Ag/B1g/B2g/B3g/Au/B1u/B2u/B3u).
+  Validated: a symmetric breathing distortion projects purely onto the
+  totally-symmetric Ag irrep. *(Feature restored; previously-empty output now
+  populated.)*
+
+- **Multi-cluster runs no longer abort the whole process on the first failing
+  cluster.** `_run_analysis_single` now *returns* exit code 1 instead of
+  calling `sys.exit(1)`, and the multi-cluster wrapper catches `BaseException`
+  (re-raising `KeyboardInterrupt`), so remaining clusters are still analyzed
+  and `multi_cluster_summary.txt` is written — matching the documented
+  contract. Also fixes programmatic use (Spyder/Jupyter) where `sys.exit`
+  previously killed the session.
+- **SSE-UMAP cluster characterization indexed the wrong modes** when any mode
+  lacked SSE data: `characterize_clusters` now receives the compacted
+  `results_valid` list (mirroring the Ca-UMAP path), so the
+  `SSE_UMAP_profile` sheet's representative modes / frequency ranges are
+  correct. *(Output change on affected runs.)*
+- **PCET H-bond detection now applies a D–H···A angle criterion** (default
+  ≥ 120°) in addition to the distance cutoff, rejecting geometrically
+  implausible acceptors; the acceptor-selection Gaussian is re-centered from
+  2.8 Å to 1.9 Å (these are H···A distances, not heavy-atom D–A), and the
+  default `cutoff_a` is tightened from 4.0 Å to the documented 3.5 Å.
+  *(Can change which acceptor / HA channel is selected.)*
+- **His protonation** restricted to nitrogens of the *same* His residue (was a
+  global distance search that could pick up foreign amide/Lys/His N in packed
+  sites). *(Output change on affected structures.)*
+- **Kabsch alignment** now uses an element-matched anchor correspondence
+  (Fe↔Fe, S↔S) and rejects alignments above an RMSD ceiling (0.5 Å) instead
+  of always returning success; Fe-ligand bond vectors use the true reference
+  (Gaussian) coordinate rather than the Kabsch-projected PDB coordinate;
+  cluster-plane normal sign is pinned deterministically. *(Minor geometry /
+  OOP-sign output changes.)*
+- **Mass-weighting uses the QM program's own atomic masses** when available
+  (ORCA `mass_amu` from `.hess`; Gaussian masses parsed from the
+  thermochemistry block) instead of always using standard atomic weights —
+  a ~0.1–0.3 % shift (larger with isotope substitution). *(Output change.)*
+- **Config**: numeric TOML scalars are now coerced (a quoted `"800"` no longer
+  crashes mid-run); added validation (`freq_max > 0`, significance
+  low < high, `amplitude > 0`, window `lo ≥ 0`).
+- **Multi-window mode**: `freq_min`/`freq_max` are no longer applied as a
+  global pre-filter (they are documented as ignored in multi-window mode), so
+  modes a window explicitly requests are no longer silently dropped; the
+  "overall" multi-window export is written to `output_dir` top level instead
+  of a frequency subfolder. *(Output/placement change in multi-window runs.)*
+- Minor: dead duplicate `return` removed; SSE feature matrix NaN-guarded and
+  early-exit return arity fixed; phi/psi failure double-count fixed; Kabsch
+  diagnostic log line prints the correct Fe-Fe distance; `--temp-k` CLI help
+  corrected (default is classical, not 80 K).
+
+### Changed (documentation / honesty)
+
+- **ORCA `.hess` normalization** documented honestly: modes are read as
+  Cartesian displacement vectors and explicitly renormalized to unit Cartesian
+  norm; the per-mode reduced mass remains a **1.0-amu placeholder**, so
+  *absolute* ORCA thermal amplitudes / reorganization energies are **not yet
+  validated** against a reference calculation (directions and ratios are
+  unaffected). A one-time runtime warning is emitted on ORCA load. **A real
+  ORCA `.hess` reference is needed to finish this item.**
+- **`lambda_pair` docstring** corrected: it mixes the bond reduced mass with a
+  mode-mass-derived amplitude and is a bond-specific *diagnostic*, differing
+  from a true isolated-oscillator energy by `μ_pair/μ_mode`; aggregation uses
+  the physically consistent `lambda_mode`.
+- **`kern_loc_frac`** relabeled to state precisely what it is (fraction of
+  summed squared Cartesian displacement on the core; not mass-weighted;
+  hydrogen excluded). Value unchanged.
+- Version strings in `export.py` (`"1.4"`) and `pcet_et.py` (`"3.0"`)
+  synchronized to `1.1.0`.
+
+### Tests / docs
+
+- Added `tests/test_regression_reorg.py` — a **default-run** headline
+  regression that pins Λ_FeFe / Λ_FeS (pair and mode) for the real fixture to
+  ±2 %, catching a global scale error that ratio/limit tests would miss.
+- Added PCET D–H···A angle acceptance/rejection tests; corrected the existing
+  H-bond fixtures to physically valid (near-linear) geometry.
+- README test counts/version corrected (94 → 178, v1.0.4 → v1.1.0). **Note:**
+  the bundled PDFs (Manual/Anleitung/Supplement) still cite older counts and
+  should be regenerated.
+
 ## [1.1.0] — 2026-06-01
 
 Renames the secondary-structure abbreviation **SS → SSE** project-wide and

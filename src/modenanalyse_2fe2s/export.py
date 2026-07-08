@@ -1301,6 +1301,11 @@ def _ws_modenanalyse(wb, results, E, cfg=None):
         _dc_sig(ws,ri,c, r.get("lig_oop_pct", 0.), r.get("s_lig_oop", 0.),
                 rf, thr_low, thr_high); c+=1
         if E: _sc(ws,ri,c, r.get("s_lig_oop", 0.), rf); c+=1
+        # [fix INP-sigma] INP% is the exact complement of OOP%
+        # (core._oop_ring_metrics: inp_pct = 100*(1-oop_frac) = 100 - oop_pct),
+        # a strict two-way split. Hence Var(INP%) = Var(OOP%) and reusing
+        # s_lig_oop as the INP sigma (and for the significance shading) is
+        # exact, not an approximation.
         _dc_sig(ws,ri,c, r.get("lig_inp_pct", 0.), r.get("s_lig_oop", 0.),
                 rf, thr_low, thr_high); c+=1
         if E: _sc(ws,ri,c, r.get("s_lig_oop", 0.), rf); c+=1
@@ -1311,6 +1316,9 @@ def _ws_modenanalyse(wb, results, E, cfg=None):
         _dc_sig(ws,ri,c, r.get("second_oop_pct", 0.), r.get("s_second_oop", 0.),
                 rf, thr_low, thr_high); c+=1
         if E: _sc(ws,ri,c, r.get("s_second_oop", 0.), rf); c+=1
+        # [fix INP-sigma] second_inp_pct = 100 - second_oop_pct exactly
+        # (strict two-way split), so Var(INP%) = Var(OOP%); reusing
+        # s_second_oop for the INP sigma and shading is exact.
         _dc_sig(ws,ri,c, r.get("second_inp_pct", 0.), r.get("s_second_oop", 0.),
                 rf, thr_low, thr_high); c+=1
         if E: _sc(ws,ri,c, r.get("s_second_oop", 0.), rf); c+=1
@@ -1385,6 +1393,9 @@ def _ws_modenanalyse_voll(wb, results, cfg):
                   r.get("mode_type_detail", r["mode_type"]), r["precision"]]:
             _dc(ws, ri, c, v); c += 1
         # Ring 2 (lig)
+        # [fix INP-sigma] inp_pct = 100 - oop_pct exactly (strict two-way
+        # split in core._oop_ring_metrics), so Var(INP) = Var(OOP) and the
+        # inp columns correctly reuse s_lig_oop / s_second_oop below.
         for k, sk in [("lig_oop_pct", "s_lig_oop"), ("lig_inp_pct", "s_lig_oop"),
                       ("lig_d",       "s_lig_d")]:
             v = r.get(k, 0.); s = r.get(sk, 0.)
@@ -2363,7 +2374,7 @@ def _ws_cluster_profil(wb, results, cluster_data, feat_names):
             import warnings as _w; _w.warn(f"[export] Cluster-Profil Error: {_e}")
 
 
-__version__ = "1.4"  # modenanalyse v1.4
+__version__ = "1.2.0"  # kept in sync with package version (config.__version__)
 
 
 # ===========================================================================

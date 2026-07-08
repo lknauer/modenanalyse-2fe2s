@@ -15,17 +15,31 @@ blocksn, beendet through ``$end``. Wir parsen folgende blocks:
 
 * ``$atoms`` -- atom list (element, Masse in amu, Position in Bohr).
 * ``$vibrational_frequencies`` -- Frequenzen in cm$^{-1}$.
-* ``$normal_modes`` -- 3N x M Matrix the Cartesian-unit-Eigenvektoren,
-  ausgiven in 5er-Spaltenbloecken.
+* ``$normal_modes`` -- 3N x M Matrix of the Cartesian displacement
+  vectors, ausgiven in 5er-Spaltenbloecken.
 
-Eigenvektor-Konvention
-----------------------
-ORCA ``.hess`` liefert Cartesian-unit-Eigenvectors ($\\sum_j |l_j|^2 = 1$),
-identical to Gaussian-hpmodes-Konvention. Sie are also direkt
-verwendbar.
+Eigenvektor-Konvention (HONEST statement, see [fix K2])
+-------------------------------------------------------
+ORCA ``$normal_modes`` are read here as **Cartesian displacement
+vectors** (one column per mode). This code then **explicitly
+renormalizes** each mode column to unit Cartesian norm
+($\\sum_j |l_j|^2 = 1$) so that it matches the downstream Gaussian
+(``hpmodes``) convention. This renormalization is direction-preserving,
+so mode directions and all ratios/fractions (e.g. OOP-vs-INP shares)
+are unaffected.
+
+KNOWN LIMITATION: the per-mode reduced mass is set to ``1.0`` amu as a
+placeholder (see :func:`parseresult_to_blocks`). We have no reference
+``.hess`` against which the ORCA reduced-mass convention could be
+safely re-derived. Consequently the **absolute** ORCA thermal
+amplitudes / reorganization energies are NOT validated against a
+reference calculation. Directions and ratios/OOP-INP fractions remain
+correct; only absolute magnitudes carry this caveat.
 """
 
 from __future__ import annotations
+
+import warnings
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -203,6 +217,17 @@ def _parse_normal_modes_block(body: str) -> np.ndarray:
             for k, c in enumerate(col_indices):
                 if c < n_cols and row_idx < n_rows:
                     matrix[row_idx, c] = float(data_toks[1 + k])
+
+    # [fix K2] Renormalize each mode column to unit Cartesian norm
+    # (sum |l_i|^2 = 1) to match the downstream Gaussian (hpmodes)
+    # convention. Direction-preserving. NOTE: the per-mode reduced mass
+    # remains a 1.0-amu placeholder (see module docstring / KNOWN
+    # LIMITATION), so absolute ORCA amplitudes are unvalidated; only
+    # directions and ratios are guaranteed.
+    for c in range(n_cols):
+        norm = float(np.linalg.norm(matrix[:, c]))
+        if norm > 1e-12:
+            matrix[:, c] /= norm
     return matrix
 
 
@@ -224,6 +249,16 @@ def load_orca_hess(filepath: str) -> OrcaHessResult:
     atoms = _parse_atoms_block(blocks["$atoms"])
     freqs = _parse_frequencies_block(blocks["$vibrational_frequencies"])
     eigvecs = _parse_normal_modes_block(blocks["$normal_modes"])
+
+    # [fix K2] One-time honesty warning: ORCA modes use a placeholder
+    # reduced mass (1.0 amu), so ABSOLUTE amplitudes / reorganization
+    # energies are unvalidated. Ratios and directions are unaffected.
+    warnings.warn(
+        "ORCA .hess loaded: per-mode reduced mass is a placeholder "
+        "(1.0 amu). Absolute ORCA thermal amplitudes / reorganization "
+        "energies are NOT validated against a reference calculation. "
+        "Mode directions and ratios/OOP-INP fractions are unaffected.",
+        UserWarning, stacklevel=2)
 
     n_atoms = len(atoms)
     n_modes = freqs.size

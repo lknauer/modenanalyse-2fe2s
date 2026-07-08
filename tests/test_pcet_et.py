@@ -47,7 +47,7 @@ def test_find_acceptor_within_cutoff():
     h_pos = np.array([0.0, 0.0, 0.0])
     atoms_h = [
         _atom(1,  1, 0.0, 0.0, 0.0),    # H selbst
-        _atom(2,  7, 0.0, 0.0, 1.0),    # donor-N
+        _atom(2,  7, 0.0, 0.0, -1.0),   # donor-N (gegenueber dem Akzeptor -> D-H...A ~180 Grad)
         _atom(3,  8, 0.0, 0.0, 2.8),    # H-Bond-Akzeptor (Wasser-O)
         _atom(4,  6, 5.0, 0.0, 0.0),    # weit entferntes C
     ]
@@ -85,7 +85,7 @@ def test_acceptor_at_exact_cutoff_included():
     h_pos = np.array([0.0, 0.0, 0.0])
     atoms_h = [
         _atom(1, 1, 0.0, 0.0, 0.0),
-        _atom(2, 7, 0.0, 0.0, 1.0),
+        _atom(2, 7, 0.0, 0.0, -1.0),   # donor-N gegenueber -> D-H...A ~180 Grad
         _atom(3, 8, 0.0, 0.0, 4.0),    # exakt 4.0 A
     ]
     accs = find_hbond_acceptors_for_h(
@@ -202,7 +202,7 @@ def test_all_acceptor_elements_recognized():
     h_pos = np.array([0.0, 0.0, 0.0])
     atoms_h = [
         _atom(1,  1, 0.0, 0.0, 0.0),    # H
-        _atom(2,  7, 0.0, 0.0, 1.0),    # donor-N
+        _atom(2,  7, 0.0, 0.0, -1.0),   # donor-N gegenueber -> D-H...A > 120 Grad
         _atom(3,  7, 0.0, 0.0, 2.5),    # N-Akzeptor
         _atom(4,  8, 0.0, 1.0, 2.5),    # O-Akzeptor
         _atom(5,  9, 1.0, 0.0, 2.5),    # F-Akzeptor
@@ -226,7 +226,7 @@ def test_acceptors_sorted_by_distance():
     h_pos = np.array([0.0, 0.0, 0.0])
     atoms_h = [
         _atom(1, 1,  0.0, 0.0, 0.0),
-        _atom(2, 7,  0.0, 0.0, 1.0),
+        _atom(2, 7,  0.0, 0.0, -1.0),   # donor-N gegenueber -> D-H...A ~180 Grad
         _atom(3, 8,  0.0, 0.0, 3.5),    # 3.5 A
         _atom(4, 8,  0.0, 0.0, 2.0),    # 2.0 A (am naechsten)
         _atom(5, 8,  0.0, 0.0, 3.0),    # 3.0 A
@@ -241,6 +241,57 @@ def test_acceptors_sorted_by_distance():
     # Erster Eintrag: das naechste Atom (Center 4 bei 2.0 A)
     assert accs[0][0] == 4
     assert abs(accs[0][1] - 2.0) < 1e-9
+
+
+# =============================================================================
+# Winkelkriterium (D-H...A) — [fix M3]
+# =============================================================================
+
+def test_acceptor_rejected_by_bad_angle():
+    """Ein Atom im Cutoff, aber auf DERSELBEN Seite wie das donor-N
+    (D-H...A-Winkel ~0 Grad), ist keine plausible H-Bruecke und wird
+    verworfen."""
+    h_pos = np.array([0.0, 0.0, 0.0])
+    atoms_h = [
+        _atom(1, 1, 0.0, 0.0, 0.0),     # H
+        _atom(2, 7, 0.0, 0.0, 1.0),     # donor-N (+z)
+        _atom(3, 8, 0.0, 0.0, 2.5),     # O auf derselben Seite (+z) -> Winkel ~0
+    ]
+    accs = find_hbond_acceptors_for_h(
+        h_pos, atoms_h, h_center=1, n_donor_center=2,
+        cluster_centers=[], ligand_centers=[], cutoff_a=4.0,
+    )
+    assert accs == [], f"Akzeptor mit schlechtem Winkel nicht verworfen: {accs}"
+
+
+def test_acceptor_accepted_by_good_angle():
+    """Dasselbe O, aber donor-N gegenueber (D-H...A ~180 Grad) -> akzeptiert."""
+    h_pos = np.array([0.0, 0.0, 0.0])
+    atoms_h = [
+        _atom(1, 1, 0.0, 0.0,  0.0),    # H
+        _atom(2, 7, 0.0, 0.0, -1.0),    # donor-N (-z)
+        _atom(3, 8, 0.0, 0.0,  2.5),    # O (+z) -> linear
+    ]
+    accs = find_hbond_acceptors_for_h(
+        h_pos, atoms_h, h_center=1, n_donor_center=2,
+        cluster_centers=[], ligand_centers=[], cutoff_a=4.0,
+    )
+    assert len(accs) == 1 and accs[0][0] == 3
+
+
+def test_angle_filter_skipped_when_donor_absent():
+    """Faellt das donor-N aus atoms_h (nicht aufloesbar), wird der
+    Winkeltest uebersprungen (Distanz-only-Fallback)."""
+    h_pos = np.array([0.0, 0.0, 0.0])
+    atoms_h = [
+        _atom(1, 1, 0.0, 0.0, 0.0),     # H
+        _atom(3, 8, 0.0, 0.0, 2.5),     # O auf +z, donor nicht vorhanden
+    ]
+    accs = find_hbond_acceptors_for_h(
+        h_pos, atoms_h, h_center=1, n_donor_center=99,   # 99 nicht in atoms_h
+        cluster_centers=[], ligand_centers=[], cutoff_a=4.0,
+    )
+    assert len(accs) == 1 and accs[0][0] == 3
 
 
 # =============================================================================

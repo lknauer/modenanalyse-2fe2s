@@ -137,12 +137,14 @@ def find_hbond_acceptors_for_h(
         n_donor_center: int,
         cluster_centers: List[int],
         ligand_centers: List[int],
-        cutoff_a: float = 4.0,
+        cutoff_a: float = 3.5,           # [fix M4b] was 4.0; match doc (3.5 A)
+        angle_min_deg: float = 120.0,    # [fix M3] D-H...A angle threshold
 ) -> List[Tuple[int, float]]:
     r"""Finds H-Bond-acceptor-Atome in the Naehe a H-Atoms.
 
     acceptoren are Atome with element N, O, F or S within von
-    ``cutoff_a`` Angstrom vom H-Atom. Folgende Ausschluesse:
+    ``cutoff_a`` Angstrom vom H-Atom, the additionally a D-H...A angle
+    criterion erfuellen (see ``angle_min_deg``). Folgende Ausschluesse:
 
       * H-Atom selbst and donor-N (``h_center``, ``n_donor_center``)
       * Cluster-Atome (Fe1, Fe2, S1, S2)
@@ -166,7 +168,14 @@ def find_hbond_acceptors_for_h(
     ligand_centers : list of int
         Alle Fe-koordinierenden ligands-Atome — are ausgeschlossen.
     cutoff_a : float, optional
-        Maximaler H...acceptor-Abstand in Angstrom. default 4.0.
+        Maximaler H...acceptor-Abstand in Angstrom. default 3.5.
+    angle_min_deg : float, optional
+        Minimaler D-H...A angle in Grad (angle at the H vertex between
+        the H->donor and H->acceptor vectors). An acceptor whose angle
+        falls below this threshold is rejected as geometrically
+        implausible for an H-bond. default 120.0 (standard loose cutoff).
+        If the donor position is not resolvable from ``atoms_h`` the
+        angle test is skipped (distance-only fallback).
 
     Returns
     -------
@@ -176,15 +185,39 @@ def find_hbond_acceptors_for_h(
     """
     excl: set = (set(cluster_centers) | set(ligand_centers)
                  | {h_center, n_donor_center})
+
+    # [fix M3] Resolve the donor (N the H is bonded to) so we can apply a
+    # D-H...A angle criterion. Donor = atom whose center == n_donor_center.
+    donor_pos = None
+    for atom in atoms_h:
+        if atom["center"] == n_donor_center:
+            donor_pos = _atom_pos(atom)
+            break
+
     out: List[Tuple[int, float]] = []
     for atom in atoms_h:
         if atom["center"] in excl:
             continue
         if atom["atomic_num"] not in _ACCEPTOR_ELEMENTS:
             continue
-        d = float(np.linalg.norm(_atom_pos(atom) - h_pos))
-        if d <= cutoff_a:
-            out.append((atom["center"], d))
+        a_pos = _atom_pos(atom)
+        d = float(np.linalg.norm(a_pos - h_pos))
+        if d > cutoff_a:
+            continue
+        # [fix M3] D-H...A angle gate: angle at H between H->donor and
+        # H->acceptor. Linear H-bond -> ~180 deg; require > angle_min_deg.
+        if donor_pos is not None:
+            v_hd = donor_pos - h_pos
+            v_ha = a_pos - h_pos
+            n_hd = float(np.linalg.norm(v_hd))
+            n_ha = float(np.linalg.norm(v_ha))
+            if n_hd > 0.0 and n_ha > 0.0:
+                cos_a = float(np.dot(v_hd, v_ha) / (n_hd * n_ha))
+                cos_a = max(-1.0, min(1.0, cos_a))  # clamp arccos domain
+                angle_deg = float(np.degrees(np.arccos(cos_a)))
+                if angle_deg < angle_min_deg:
+                    continue
+        out.append((atom["center"], d))
     out.sort(key=lambda x: x[1])
     return out
 
@@ -228,7 +261,7 @@ def build_pcet_info(
     cluster_centers = list(fe_c) + list(s_c)
     info = PcetAtomInfo(cluster_centers=cluster_centers)
 
-    cutoff_a = float(getattr(cfg, "pcet_hbond_cutoff_a", 4.0))
+    cutoff_a = float(getattr(cfg, "pcet_hbond_cutoff_a", 3.5))  # [fix M4b] was 4.0
 
     # Alle Fe-koordinierenden Atome (ligands) als acceptor-Ausschluss
     all_lig_centers = [lig.lig_center for lig in coord_info.ligands]
@@ -322,4 +355,4 @@ def build_et_info(
     )
 
 
-__version__ = "3.0"
+__version__ = "1.2.0"  # match unified package version (config.__version__)

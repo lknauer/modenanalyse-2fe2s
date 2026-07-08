@@ -102,7 +102,9 @@ def make_parser() -> argparse.ArgumentParser:
     # Thermal
     g_th = p.add_argument_group("Thermodynamics (override)")
     g_th.add_argument("--temp-k", type=float, default=None,
-                      help="Sample temperature in Kelvin. Default 80.")
+                      help=("Sample temperature in Kelvin. Default: None "  # [cli help]
+                            "(classical mode, amplitude=1.0); quantum ZPE "
+                            "amplitudes only when set."))
 
     # Cluster
     g_cl = p.add_argument_group("Cluster selection (override)")

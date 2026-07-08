@@ -54,6 +54,11 @@ from .config import Config
 from .logio import RunLog, _HIS
 
 
+# [fix M6] Maximum acceptable anchor RMSD (Angstrom) for a Kabsch alignment.
+# Above this threshold the correspondence is considered unreliable and the
+# alignment is rejected (``ok=False``) instead of being silently accepted.
+KABSCH_RMSD_MAX = 0.5
+
 
 # ---------------------------------------------------------------------------
 # Hilfsfunktionen
@@ -365,7 +370,16 @@ def cluster_normal(
         return np.array([0., 0., 1.])
     ctr = pts.mean(0)
     _, _, Vt = np.linalg.svd(pts - ctr)
-    return Vt[-1]
+    normal = Vt[-1]
+    # [fix minor] Pin the normal sign deterministically: the smallest
+    # singular vector has an arbitrary sign, so the out-of-plane axis could
+    # otherwise flip between structures/clusters. Convention: non-negative
+    # +z component; if (near) orthogonal to +z, fall back to the first
+    # non-zero component being positive. Magnitude is unchanged.
+    if normal[2] < 0 or (abs(normal[2]) < 1e-9 and
+                         next((v for v in normal if abs(v) > 1e-12), 0.0) < 0):
+        normal = -normal
+    return normal
 
 
 def compute_dist_ref(
@@ -512,8 +526,13 @@ def kabsch_align(
         else:
             i, j = best_pair
             fe1p = np.array(pdb_fe[i]); fe2p = np.array(pdb_fe[j])
+            # [fix minor] Print the actual chosen PDB Fe-Fe distance ``d``.
+            # The old ``best_score + log_fefe`` only equals ``d`` when
+            # d > log_fefe (best_score = abs(d - log_fefe)).
+            _d_chosen = float(np.linalg.norm(
+                np.array(pdb_fe[i]) - np.array(pdb_fe[j])))
             runlog.info(f"Kabsch: PDB Fe pair ({i}, {j}) chosen, "
-                        f"Fe-Fe = {best_score + log_fefe:.3f} A "
+                        f"Fe-Fe = {_d_chosen:.3f} A "
                         f"(Gauss reference {log_fefe:.3f} A).")
             # Fuer pdb_cl: the chosene Paar als pdb_fe[0,1] umsortieren
             pdb_fe = [pdb_fe[i], pdb_fe[j]]
@@ -536,28 +555,50 @@ def kabsch_align(
         return None, None, float("nan"), False
 
     try:
+        # log_cl_arr and pdb_cl both carry Fe at rows 0,1 and S at rows 2,3
+        # by construction.
         pdb_cl = np.array(
             [pdb_fe[0], pdb_fe[1], pdb_s_cl[0], pdb_s_cl[1]], dtype=float)
 
-        rough_t = log_cl_arr.mean(0) - pdb_cl.mean(0)
-        pdb_sh  = pdb_cl + rough_t
-        order, used = [], set()
-        for pi in range(4):
-            best = min(
-                ((np.linalg.norm(pdb_sh[pi] - log_cl_arr[li]), li)
-                 for li in range(4) if li not in used))
-            used.add(best[1]); order.append(best[1])
-        pdb_m = pdb_cl[order]
+        # [fix M6] ELEMENT-MATCHED correspondence. The old code did a
+        # translation-only nearest-neighbour match that discarded element
+        # identity, so a rotated PDB could yield an Fe<->S-swapped pairing.
+        # Fe anchors may pair only with Fe reference anchors and S only with
+        # S. Within each element group (2 Fe, 2 S) there are just two
+        # orderings, giving 2x2 = 4 candidate correspondences; we keep the
+        # one with the lowest post-alignment RMSD. Rotation/reflection math
+        # (SVD + det-sign correction) is unchanged from the original.
+        def _kabsch_from(pm: np.ndarray):
+            P = pm        - pm.mean(0)
+            Q = log_cl_arr - log_cl_arr.mean(0)
+            U, _, Vt = np.linalg.svd(P.T @ Q)
+            ds = np.linalg.det(Vt.T @ U.T)
+            R  = Vt.T @ np.diag([1, 1, ds]) @ U.T
+            t  = log_cl_arr.mean(0) - R @ pm.mean(0)
+            P_t = (R @ pm.T).T + t
+            rmsd = float(np.sqrt(np.mean(np.sum((P_t - log_cl_arr)**2, axis=1))))
+            return R, t, rmsd
 
-        P    = pdb_m      - pdb_m.mean(0)
-        Q    = log_cl_arr - log_cl_arr.mean(0)
-        U, _, Vt = np.linalg.svd(P.T @ Q)
-        ds   = np.linalg.det(Vt.T @ U.T)
-        R    = Vt.T @ np.diag([1, 1, ds]) @ U.T
-        t    = log_cl_arr.mean(0) - R @ pdb_m.mean(0)
+        best: Optional[Tuple[float, np.ndarray, np.ndarray]] = None
+        for fe_perm in ((0, 1), (1, 0)):
+            for s_perm in ((2, 3), (3, 2)):
+                perm  = [fe_perm[0], fe_perm[1], s_perm[0], s_perm[1]]
+                pdb_m = pdb_cl[perm]
+                R_c, t_c, rmsd_c = _kabsch_from(pdb_m)
+                if best is None or rmsd_c < best[0]:
+                    best = (rmsd_c, R_c, t_c)
 
-        P_t  = (R @ pdb_m.T).T + t
-        rmsd = float(np.sqrt(np.mean(np.sum((P_t - log_cl_arr)**2, axis=1))))
+        rmsd, R, t = best
+
+        # [fix M6] RMSD ACCEPTANCE GATE. The old code returned ok=True for
+        # any non-raising result. Reject alignments whose anchor RMSD exceeds
+        # the threshold so a corrupt correspondence cannot pass silently.
+        if rmsd > KABSCH_RMSD_MAX:
+            runlog.warn(f"Kabsch: anchor RMSD {rmsd:.3f} A exceeds "
+                        f"{KABSCH_RMSD_MAX:.2f} A threshold; alignment "
+                        f"rejected.")
+            return R, t, rmsd, False
+
         return R, t, rmsd, True
 
     except Exception as exc:
@@ -837,6 +878,21 @@ def find_coordinating_residues(
     ligands:  List[LigandInfo]         = []
     found_res: Set[Tuple]              = set()
 
+    # [fix M6b] Real reference (Gaussian) coordinate of a ligand center.
+    # The Kabsch transform (R, t) is used only for MATCHING/identification;
+    # the bond geometry that downstream OOP/INP analysis operates on must be
+    # built from the true reference coordinates, not the Kabsch-projected PDB
+    # position (which would carry the full alignment residual into every
+    # Fe-ligand bond vector). lig_center is obtained from pdb_to_gaus_h, whose
+    # centers are matched against atoms_all, so idx_map_all[lig_center] is the
+    # reliable real coordinate. Falls back to the projected PDB position only
+    # if the center is (unexpectedly) unmapped.
+    def _ref_lig_xyz(_lig_center: int, _pdb_xyz: np.ndarray) -> np.ndarray:
+        if _lig_center in idx_map_all:
+            _al = atoms_all[idx_map_all[_lig_center]]
+            return np.array([_al["x"], _al["y"], _al["z"]])
+        return R @ _pdb_xyz + t
+
     for fe_idx, fc in enumerate(fe_c):
         if fe_gaus[fe_idx] is None:
             continue
@@ -871,7 +927,7 @@ def find_coordinating_residues(
                             lig.res_num == rnum and
                             lig.res_name == rname and
                             dist_pdb < lig.bond_len):
-                        gaus_lig = R @ pdb_xyz + t
+                        gaus_lig = _ref_lig_xyz(lig_center, pdb_xyz)  # [fix M6b]
                         bvec     = gaus_lig - fe_xyz_gaus
                         bl       = float(np.linalg.norm(bvec))
                         if bl > 1e-10:
@@ -883,7 +939,7 @@ def find_coordinating_residues(
                 continue
 
             found_res.add(key)
-            gaus_lig = R @ pdb_xyz + t
+            gaus_lig = _ref_lig_xyz(lig_center, pdb_xyz)  # [fix M6b]
             bvec     = gaus_lig - fe_xyz_gaus
             bl       = float(np.linalg.norm(bvec))
             if bl < 1e-10:
@@ -1030,6 +1086,18 @@ def _add_his_hn_info(
         if a.get("is_h") and pi in pdb_to_gaus_h
     }
 
+    # [fix M5] Gaussian center -> PDB atom (pdb_to_gaus_h maps ALL PDB atoms,
+    # heavy + H). Used below to restrict the imidazole "ring nitrogen" search
+    # to the His residue itself; a global distance search wrongly picks up
+    # foreign N (neighbouring amides, Lys NZ, a second His) in packed active
+    # sites and corrupts his_protonated / his_hn_center / hn_vec.
+    ctr_to_pdb: Dict[int, Dict] = {
+        pdb_to_gaus_h[pi]: a
+        for pi, a in enumerate(all_pdb_h)
+        if pi in pdb_to_gaus_h
+    }
+    _IMIDAZOLE_N = {"ND1", "NE2"}
+
     for lig in ligands:
         if lig.res_name.upper() not in _HIS or lig.lig_element != "N":
             continue
@@ -1041,8 +1109,16 @@ def _add_his_hn_info(
                             atoms_all[nd1_idx]["y"],
                             atoms_all[nd1_idx]["z"]])
 
-        # Alle Ring-N of the Imidazols: ND1 + alle N within RING_CUT
-        # (ND1-NE2 in the echten His: ~2.21 Å < RING_CUT=3.0)
+        # [fix M5] His residue identity (from the ND1's own PDB atom, with a
+        # fallback to the LigandInfo fields) for the ring-N restriction below.
+        his_nd1_pdb = ctr_to_pdb.get(lig.lig_center)
+        his_rnum  = his_nd1_pdb["rnum"] if his_nd1_pdb else lig.res_num
+        his_rname = (his_nd1_pdb["rname"] if his_nd1_pdb
+                     else lig.res_name).upper()
+        his_chain = his_nd1_pdb.get("chain") if his_nd1_pdb else None
+
+        # Alle Ring-N of the Imidazols: ND1 + weitere Ring-N (NE2) DESSELBEN
+        # His-Residuums within RING_CUT (ND1-NE2 in the echten His: ~2.21 Å).
         ring_ns: List[Tuple[int, np.ndarray, int]] = [
             (nd1_idx, nd1_pos, lig.lig_center)
         ]
@@ -1050,8 +1126,32 @@ def _add_his_hn_info(
             if ai == nd1_idx or a.get("atomic_num") != 7:
                 continue
             a_pos = np.array([a["x"], a["y"], a["z"]])
-            if float(np.linalg.norm(a_pos - nd1_pos)) < RING_CUT:
-                ring_ns.append((ai, a_pos, idx_to_ctr[ai]))
+            # Distance stays as a SECONDARY filter.
+            if float(np.linalg.norm(a_pos - nd1_pos)) >= RING_CUT:
+                continue
+            # [fix M5] PRIMARY filter: the candidate N must belong to the same
+            # residue as the His ligand (same res_num, res_name and chain).
+            cand_ctr = idx_to_ctr.get(ai)
+            cand_pdb = ctr_to_pdb.get(cand_ctr) if cand_ctr is not None else None
+            if cand_pdb is not None:
+                same_res = (cand_pdb["rnum"] == his_rnum and
+                            str(cand_pdb["rname"]).upper() == his_rname and
+                            (his_chain is None or
+                             cand_pdb.get("chain") == his_chain))
+                if not same_res:
+                    continue
+                # Prefer imidazole ring nitrogens (ND1/NE2); this also rejects
+                # the His backbone amide N of the same residue. If the name is
+                # unknown, same-residue + distance still gate the candidate.
+                cand_aname = str(cand_pdb.get("aname", "")).strip().upper()
+                if cand_aname and cand_aname not in _IMIDAZOLE_N:
+                    continue
+            else:
+                # Residue fields unavailable (unmapped center): without any
+                # identity we cannot confirm membership, so skip the foreign
+                # candidate rather than let a global distance hit corrupt it.
+                continue
+            ring_ns.append((ai, a_pos, cand_ctr))
 
         # Fuer jeden Ring-N: suche gebundenes H-Atom in Gaussian-Koordinaten
         # path A: only PDB-identifizierte H (Prioritaet, pruefe zuerst)
@@ -1554,7 +1654,9 @@ def detect_sse_phipsi(
                 try:
                     phi = _dihedral(prev["C"], res["N"], res["CA"], res["C"])
                 except Exception:
-                    _n_fail_phipsi += 1  # phi undefined (terminal/Pro/bad coords)
+                    # [fix minor] Do NOT count here; the residue is counted
+                    # exactly once below (phi stays None -> the None-branch).
+                    pass  # phi undefined (terminal/Pro/bad coords)
 
         if i < len(rnums) - 1:
             nxt = residues.get(rnums[i + 1], {})
@@ -1562,11 +1664,13 @@ def detect_sse_phipsi(
                 try:
                     psi = _dihedral(res["N"], res["CA"], res["C"], nxt["N"])
                 except Exception:
-                    _n_fail_phipsi += 1  # psi undefined (terminal/bad coords)
+                    # [fix minor] Do NOT count here; counted once below
+                    # (psi stays None -> the None-branch).
+                    pass  # psi undefined (terminal/bad coords)
 
         if phi is None or psi is None:
             sse_type[rnum] = "C"
-            _n_fail_phipsi += 1
+            _n_fail_phipsi += 1  # [fix minor] single count per failing residue
         elif -90.0 <= phi <= -30.0 and -70.0 <= psi <= -10.0:
             sse_type[rnum] = "H"
         elif (-160.0 <= phi <= -60.0 and
@@ -1616,4 +1720,4 @@ def detect_sse_phipsi(
     return sse_elements
 
 
-__version__ = "1.4"  # modenanalyse v1.4
+__version__ = "1.2.0"  # kept in sync with package version (config.__version__)
