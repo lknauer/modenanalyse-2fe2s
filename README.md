@@ -57,8 +57,8 @@ pip install modenanalyse_2fe2s-1.2.3-py3-none-any.whl
 Or from source:
 
 ```bash
-git clone https://gitlab.rhrk.uni-kl.de/ag-schuenemann/modenanalyse_2fe2s.git
-cd modenanalyse_2fe2s
+git clone https://gitlab.rhrk.uni-kl.de/ag-schuenemann/Modenanalyse-2Fe2S.git
+cd Modenanalyse-2Fe2S
 pip install -e .
 ```
 

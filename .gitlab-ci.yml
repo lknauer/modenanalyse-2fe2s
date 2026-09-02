@@ -1,0 +1,40 @@
+# GitLab CI for Modenanalyse-2Fe2S.
+#
+# Same recipe as the GitHub Actions workflow in .github/workflows/tests.yml:
+# build the wheel, install it (not the source tree, so packaging mistakes
+# show up), run the test suite. Full python images, not -slim: hdbscan and
+# umap-learn may need a compiler on Python versions without a wheel.
+
+stages:
+  - test
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.pip-cache"
+  MPLBACKEND: "Agg"
+
+cache:
+  paths:
+    - .pip-cache/
+
+.test:
+  stage: test
+  before_script:
+    - python -m pip install --upgrade pip build wheel pytest
+  script:
+    - python -m build --wheel
+    - pip install dist/*.whl
+    - python -c "import modenanalyse_2fe2s; print(modenanalyse_2fe2s.__version__)"
+    - pytest -q --junitxml=report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+    expire_in: 1 week
+
+test:py311:
+  extends: .test
+  image: python:3.11
+
+test:py312:
+  extends: .test
+  image: python:3.12
