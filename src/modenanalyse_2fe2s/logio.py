@@ -222,15 +222,26 @@ class RunLog:
         h("CONFIGURATION")
         lines.append(f"  log_file:    {cfg.log_file}\n")
         lines.append(f"  pdb_file:    {cfg.pdb_file or '(none)'}\n")
-        lines.append(f"  output_dir:  {cfg.outdir()}\n")
-        lines.append(
-            f"  freq_filter: "  # freq_min/max: None-safe
-            f"{'-' if cfg.freq_min is None else cfg.freq_min} - "
-            f"{'-' if cfg.freq_max is None else cfg.freq_max} cm-1\n")
+        _fw = getattr(cfg, "freq_windows", None)
+        if _fw:
+            # v1.2.3: in multi-window mode the REPORT and the overall export
+            # live in the base directory; cfg.outdir() would append the
+            # (ignored) freq_min/freq_max label of the user's TOML.
+            _base = (cfg.output_dir if cfg.output_dir
+                     else os.path.dirname(os.path.abspath(cfg.log_file)))
+            lines.append(f"  output_dir:  {_base}  (+ one subfolder per window)\n")
+            if cfg.freq_min is not None or cfg.freq_max is not None:
+                lines.append("  freq_filter: (freq_min/freq_max ignored -- "
+                             "freq_windows is set)\n")
+        else:
+            lines.append(f"  output_dir:  {cfg.outdir()}\n")
+            lines.append(
+                f"  freq_filter: "  # freq_min/max: None-safe
+                f"{'-' if cfg.freq_min is None else cfg.freq_min} - "
+                f"{'-' if cfg.freq_max is None else cfg.freq_max} cm-1\n")
         # Bugfix v1.0.4 (post-release Apd1 audit): also report freq_windows
         # if set; previously only freq_min/freq_max were shown, which made
         # the actual filter invisible when only freq_windows was used.
-        _fw = getattr(cfg, "freq_windows", None)
         if _fw:
             try:
                 _fw_str = ", ".join(f"[{lo:.0f}-{hi:.0f}]" for lo, hi in _fw)

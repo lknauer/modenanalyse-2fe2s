@@ -5,6 +5,59 @@ All notable changes to `modenanalyse_2fe2s` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.3] — 2026-09-02
+
+Robustness fixes triggered by a user run in multi-window mode where the
+interpolated Excel silently kept the stale file of a previous run.
+
+### Fixed
+
+- **Locked output files are no longer silently dropped.** All Excel
+  exporters save through `export._save_workbook`. If the target raises
+  `PermissionError` (on Windows: the file of a previous run is still open
+  in Excel), the workbook is written to `<name>_1.xlsx` (`_2`, …) and the
+  fallback is reported on the console *and* in the REPORT. Previously the
+  interpolation exporters logged `interpolation Excel failed: [Errno 13]
+  Permission denied` to the REPORT only, and the stale file with the
+  original name was easily mistaken for the current result. The two
+  `export_all` guards now also print their failure to the console.
+- **Multi-window mode: context modes never reached the per-window
+  exports.** The window loop took its context candidates from `results`,
+  which in multi-window mode is already filtered to the window hull, so
+  the top (and bottom) window always ended without a right (left) anchor
+  and emitted `interp_boundary_mode='context' but no context modes
+  available` — even though the runner had analysed the context modes above
+  the hull (`N context modes right`). The pool now includes
+  `context_results`/`context_results_left` (new helper
+  `runner._window_context`), and the overall export receives them too.
+- **Multi-window mode: context modes are now loaded from the window hull.**
+  Previously they were only loaded when `freq_max`/`freq_min` were set —
+  fields that are documented as *ignored* in multi-window mode. The hull
+  (`min(lo)`, `max(hi)` of `freq_windows`) now drives the context ranges;
+  an open upper window (`inf`) loads no right context, as before.
+- REPORT `CONFIGURATION` block in multi-window mode: `output_dir` showed the
+  `freq_min`/`freq_max` subfolder of the (ignored) TOML fields instead of
+  the base directory where the REPORT and the overall export are written;
+  `freq_filter` now states that those fields are ignored.
+- `_analysis_interp{step}.xlsx`: frequency column rounded to 6 decimals
+  (`np.arange` noise such as `0.15000000000000002`).
+
+### Tests
+
+- Added `tests/test_v123_export_robustness.py`: locked-file fallback,
+  `_window_context` selection, REPORT base directory in multi-window mode.
+
+### Verified
+
+- Full runs on two 10 GB Gaussian logs (Apd1 HH255/259CC prot/deprot,
+  B3LYP, `freq_windows = [[0, 100]]`, 40 K): 100 % PDB matching with the
+  backbone PDBs, no warnings, interpolated grids 0.00 … 100.00 cm⁻¹ with
+  context-anchored upper edge.
+
+### Notes
+
+- The manual PDFs still carry the v1.2.2 build.
+
 ## [1.2.2] — 2026-09-02
 
 Usability fix for the interpolated Excel exports: **the requested frequency

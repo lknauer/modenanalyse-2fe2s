@@ -51,13 +51,13 @@ each cluster's geometry and run status.
 ## Installation
 
 ```bash
-pip install modenanalyse_2fe2s-1.0.1-py3-none-any.whl
+pip install modenanalyse_2fe2s-1.2.3-py3-none-any.whl
 ```
 
 Or from source:
 
 ```bash
-git clone <repository>
+git clone https://gitlab.rhrk.uni-kl.de/ag-schuenemann/modenanalyse_2fe2s.git
 cd modenanalyse_2fe2s
 pip install -e .
 ```

@@ -226,6 +226,38 @@ def _make_synthetic_zero_mode(freq_cm1: float,
 
 # ===========================================================================
 
+def _window_context(pool, win_lo, win_hi, ctx_cm1):
+    """Selects the context modes for one frequency window.
+
+    Parameters
+    ----------
+    pool : list of dict
+        Mode results to choose from (all analysed modes plus the context
+        modes outside the window hull).
+    win_lo : float
+        Lower window bound (cm^-1).
+    win_hi : float or None
+        Upper window bound; ``None`` for an open window (no right context).
+    ctx_cm1 : float
+        Context range on both sides (``cfg.interp_context_cm1``).
+
+    Returns
+    -------
+    (ctx_right, ctx_left) : tuple of lists
+        Modes in ``(win_hi, win_hi + ctx_cm1]`` and
+        ``[win_lo - ctx_cm1, win_lo)``, each sorted by frequency.
+    """
+    ctx_right = []
+    if win_hi is not None:
+        ctx_right = sorted((r for r in pool
+                            if win_hi < r["freq"] <= win_hi + ctx_cm1),
+                           key=lambda r: r["freq"])
+    ctx_left = sorted((r for r in pool
+                       if win_lo - ctx_cm1 <= r["freq"] < win_lo),
+                      key=lambda r: r["freq"])
+    return ctx_right, ctx_left
+
+
 def _run_analysis_single(cfg: "Config") -> int:
     """Single-Cluster-Pipeline: analysiert genau einen Cluster (cfg.cluster_index).
 
@@ -1013,15 +1045,27 @@ def _run_analysis_single(cfg: "Config") -> int:
     # Decay-Anker -- oberhalb des DFT-Spektrums existieren wirklich keine
     # Beitraege -- und macht das Verhalten explizit (frueher implizit ueber
     # np.interp's right=0.0).
+    # v1.2.3: Im Multi-Window-Modus bestimmt die Huelle aller Fenster die
+    # Kontextgrenzen. cfg.freq_min/freq_max werden dort laut Doku ignoriert
+    # -- vorher wurden ohne sie gar keine Kontextmoden geladen, und selbst
+    # mit ihnen kamen sie im Fenster-Export nie an (Pool war `results`,
+    # das bereits auf die Fenster gefiltert ist).
+    _ctx_freq_min = cfg.freq_min
+    _ctx_freq_max = cfg.freq_max
+    if _multi_window:
+        _wins = cfg.get_windows()
+        _ctx_freq_min = min(lo for lo, _hi in _wins)
+        _hull_hi = max(hi for _lo, hi in _wins)
+        _ctx_freq_max = _hull_hi if np.isfinite(_hull_hi) else None
     context_results = []
-    if cfg.freq_max is not None and cfg.interp_context_cm1 > 0:
-        ctx_hi = cfg.freq_max + cfg.interp_context_cm1
+    if _ctx_freq_max is not None and cfg.interp_context_cm1 > 0:
+        ctx_hi = _ctx_freq_max + cfg.interp_context_cm1
         # Alle Modes-im-Kontextfenster (nahe Kontextmodes)
         candidates_in_window = [(bi, col, mn, freq)
             for bi in all_blocks
             for col, (mn, freq) in enumerate(zip(bi.mode_nums, bi.freqs))
             if (mn in best_block and best_block[mn] is bi
-                and freq > cfg.freq_max and freq <= ctx_hi)]
+                and freq > _ctx_freq_max and freq <= ctx_hi)]
         # v1.0.4 FUND 12: wenn keine Modes im Kontextfenster, nimm die
         # naechste Mode oberhalb als "minimaler Anker"
         _use_synthetic_upper_zero = False
@@ -1031,12 +1075,12 @@ def _run_analysis_single(cfg: "Config") -> int:
                  for bi in all_blocks
                  for col, (mn, freq) in enumerate(zip(bi.mode_nums, bi.freqs))
                  if (mn in best_block and best_block[mn] is bi
-                     and freq > cfg.freq_max)],
+                     and freq > _ctx_freq_max)],
                 key=lambda x: x[3])
             if all_above:
                 candidates_in_window = [all_above[0]]
                 runlog.info(
-                    f"No context modes in [{cfg.freq_max:.1f}, "
+                    f"No context modes in [{_ctx_freq_max:.1f}, "
                     f"{ctx_hi:.1f}] cm-1; using single anchor mode "
                     f"#{all_above[0][2]} @ {all_above[0][3]:.2f} cm-1 "
                     f"for upper-edge interpolation (v1.0.4 FUND 12).")
@@ -1075,31 +1119,31 @@ def _run_analysis_single(cfg: "Config") -> int:
             context_results.append(_synth_result)
             runlog.info(
                 f"Synthetic zero anchor at {_synth_freq:.2f} cm-1 "
-                f"(no real modes above freq_max={cfg.freq_max:.1f}). "
+                f"(no real modes above freq_max={_ctx_freq_max:.1f}). "
                 f"Interpolated quantities decay to 0 above this point "
                 f"(v1.0.4 FUND 13).")
         if context_results:
             runlog.info(f"{len(context_results)} context modes right "
-                        f"({cfg.freq_max:.1f}\u2013{ctx_hi:.1f} cm\u207b\xb9)")
+                        f"({_ctx_freq_max:.1f}\u2013{ctx_hi:.1f} cm\u207b\xb9)")
         if ctx_fail_r:
             runlog.warn(f"{ctx_fail_r} context modes right failed "
                         f"(Interpolation at the oberen Rand if applicable ungenau).")
 
     context_results_left = []
-    if cfg.freq_min is not None and cfg.interp_context_cm1 > 0:
+    if _ctx_freq_min is not None and cfg.interp_context_cm1 > 0:
         # Returns es ueberhaupt modes unterhalb freq_min?
         all_freqs_below = [freq
                            for bi in all_blocks
                            for (mn, freq) in zip(bi.mode_nums, bi.freqs)
                            if mn in best_block and best_block[mn] is bi
-                           and 0 < freq < cfg.freq_min]
+                           and 0 < freq < _ctx_freq_min]
         if all_freqs_below:
-            ctx_lo = cfg.freq_min - cfg.interp_context_cm1
+            ctx_lo = _ctx_freq_min - cfg.interp_context_cm1
             candidates_in_window_l = [(bi, col, mn, freq)
                 for bi in all_blocks
                 for col, (mn, freq) in enumerate(zip(bi.mode_nums, bi.freqs))
                 if (mn in best_block and best_block[mn] is bi
-                    and freq < cfg.freq_min and freq >= ctx_lo)]
+                    and freq < _ctx_freq_min and freq >= ctx_lo)]
             # v1.0.4 FUND 12: wenn keine Modes im Kontextfenster, nimm die
             # naechste Mode unterhalb als "minimaler Anker"
             if not candidates_in_window_l:
@@ -1108,13 +1152,13 @@ def _run_analysis_single(cfg: "Config") -> int:
                      for bi in all_blocks
                      for col, (mn, freq) in enumerate(zip(bi.mode_nums, bi.freqs))
                      if (mn in best_block and best_block[mn] is bi
-                         and 0 < freq < cfg.freq_min)],
+                         and 0 < freq < _ctx_freq_min)],
                     key=lambda x: -x[3])  # absteigend → naechste UNTER freq_min zuerst
                 if all_below:
                     candidates_in_window_l = [all_below[0]]
                     runlog.info(
                         f"No context modes in [{ctx_lo:.1f}, "
-                        f"{cfg.freq_min:.1f}] cm-1; using single anchor "
+                        f"{_ctx_freq_min:.1f}] cm-1; using single anchor "
                         f"mode #{all_below[0][2]} @ "
                         f"{all_below[0][3]:.2f} cm-1 for lower-edge "
                         f"interpolation (v1.0.4 FUND 12).")
@@ -1139,7 +1183,7 @@ def _run_analysis_single(cfg: "Config") -> int:
                                 f"{type(_e_ctx).__name__}: {_e_ctx}")
             if context_results_left:
                 runlog.info(f"{len(context_results_left)} context modes left "
-                            f"({ctx_lo:.1f}\u2013{cfg.freq_min:.1f} cm\u207b\xb9)")
+                            f"({ctx_lo:.1f}\u2013{_ctx_freq_min:.1f} cm\u207b\xb9)")
             if ctx_fail_l:
                 runlog.warn(f"{ctx_fail_l} context modes left failed "
                             f"(Interpolation at the unteren Rand if applicable ungenau).")
@@ -1357,8 +1401,8 @@ def _run_analysis_single(cfg: "Config") -> int:
             cluster_info         = _cluster_info,
             b_factors            = b_factors,
             atoms                = atoms,
-            context_results      = [],
-            context_results_left = [],
+            context_results      = context_results,       # v1.2.3
+            context_results_left = context_results_left,
             embedding_coords     = emb_coords_g,
             embed_feat_matrix    = X_e_g,
             embed_feat_names     = feat_e_g,
@@ -1410,12 +1454,14 @@ def _run_analysis_single(cfg: "Config") -> int:
             win_cfg.freq_windows = None   # no rekursiver multi-window
             os.makedirs(win_cfg.outdir(), exist_ok=True)
 
-            # Kontext-modes from Gesamtergebnissen (kein additionallyer Analyselauf)
-            ctx_hi   = cfg.interp_context_cm1
-            ctx_right = ([r for r in results
-                           if _hi_fin and win_hi < r["freq"] <= win_hi + ctx_hi])
-            ctx_left  = [r for r in results
-                         if win_lo - ctx_hi <= r["freq"] < win_lo]
+            # Kontext-modes: Nachbarfenster (aus `results`) UND die separat
+            # analysierten Kontextmoden ausserhalb der Fensterhuelle. v1.2.3:
+            # vorher nur `results`, das im Multi-Window-Modus bereits auf die
+            # Fenster gefiltert ist -- das oberste/unterste Fenster bekam
+            # daher nie Kontext ("no context modes available"-Warnung).
+            ctx_right, ctx_left = _window_context(
+                results + context_results + context_results_left,
+                win_lo, win_hi if _hi_fin else None, cfg.interp_context_cm1)
 
             # B-Faktoren for dieses Window from gespeicherten Beicontribute
             b_accum_w = np.zeros(len(atoms))

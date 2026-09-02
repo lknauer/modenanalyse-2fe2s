@@ -189,6 +189,9 @@ def export_all(payload):
             grid_min=p.grid_min, grid_max=p.grid_max,
         )
     except Exception as exc:
+        # v1.2.3: also on the console -- a REPORT-only warning was too
+        # easy to miss (the run otherwise looks successful).
+        print(f"  !! interpolation Excel failed: {exc}")
         p.runlog.warn(f"interpolation Excel failed: {exc}")
 
     try:
@@ -201,6 +204,7 @@ def export_all(payload):
             grid_min=p.grid_min, grid_max=p.grid_max,
         )
     except Exception as exc:
+        print(f"  !! SSE-interpolation Excel failed: {exc}")
         p.runlog.warn(f"SSE-interpolation Excel failed: {exc}")
 
     # Hardening v3.1: Embedding-PNGs are off by default. Set
@@ -328,11 +332,41 @@ def _dc_sig(ws, row, col, v, sigma, row_fill=None,
     _dc(ws, row, col, v, fill=fill)
 
 
+def _save_workbook(wb, outfile: str, runlog: "RunLog") -> str:
+    """Saves ``wb`` to ``outfile`` and returns the path actually written.
+
+    v1.2.3: If the target is locked -- ``PermissionError``, on Windows
+    almost always because the file from a previous run is still open in
+    Excel -- the workbook is written to ``<stem>_1.xlsx`` (``_2``, ...)
+    instead of being silently dropped. The fallback is reported on the
+    console AND in the REPORT, because a stale file with the original
+    name would otherwise be mistaken for the current result.
+    """
+    try:
+        wb.save(outfile)
+        return outfile
+    except PermissionError:
+        stem, ext = os.path.splitext(outfile)
+        for k in range(1, 100):
+            alt = f"{stem}_{k}{ext}"
+            try:
+                wb.save(alt)
+            except PermissionError:
+                continue
+            msg = (f"{os.path.basename(outfile)} is locked (open in Excel?) "
+                   f"-- written to {os.path.basename(alt)} instead. "
+                   f"Close the file and re-run to refresh the original.")
+            print(f"  !! {msg}")
+            runlog.warn(msg)
+            return alt
+        raise
+
+
 def _save(wb, outfile, runlog):
     """Saves the Arbeitsmappe, gibt the filenamen from and registriert sie in the RunLog."""
-    wb.save(outfile)
-    print(f"  -> {os.path.basename(outfile)}")
-    runlog.add_output(outfile)
+    written = _save_workbook(wb, outfile, runlog)
+    print(f"  -> {os.path.basename(written)}")
+    runlog.add_output(written)
 
 
 # ===========================================================================
@@ -951,13 +985,14 @@ def export_interpolated_excel(
                  [f"{l}_hn" for l in his_prot_labels])
 
         for ri, freq in enumerate(f_grid, 2):
-            _dc(ws, ri, 1, float(freq))
+            # v1.2.3: round away np.arange float noise (0.15000000000000002)
+            _dc(ws, ri, 1, round(float(freq), 6))
             for ci, key in enumerate(order, 2):
                 _dc(ws, ri, ci, float(cols[key][ri-2]))
 
         ws.freeze_panes = "A2"
         n = len(f_grid)
-        wb.save(outfile)
+        outfile = _save_workbook(wb, outfile, runlog)
         print(f"  -> {os.path.basename(outfile)}"
               f"  ({n} grid points, Δf={cfg.interp_step} cm-1)")
         runlog.add_output(outfile)
@@ -1075,7 +1110,7 @@ def export_sse_interp_excel(
 
             ws.freeze_panes = "B2"
 
-        wb.save(outfile)
+        outfile = _save_workbook(wb, outfile, runlog)
         print(f"  -> {os.path.basename(outfile)}"
               f"  ({n} grid points, {len(sse_names)} SSE-elements, "
               f"{len(metrics)} Metriken)")
@@ -2451,7 +2486,7 @@ def _ws_cluster_profil(wb, results, cluster_data, feat_names):
             import warnings as _w; _w.warn(f"[export] Cluster-Profil Error: {_e}")
 
 
-__version__ = "1.2.2"  # kept in sync with package version (config.__version__)
+__version__ = "1.2.3"  # kept in sync with package version (config.__version__)
 
 
 # ===========================================================================
