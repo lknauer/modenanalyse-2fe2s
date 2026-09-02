@@ -1,6 +1,6 @@
 % =========================================================================
 % modenanalyse_2fe2s -- Supplementary Technical Documentation
-% Version 1.2.1 (July 2026)
+% Version 1.2.2 (September 2026)
 % =========================================================================
 %
 % This document is the technical supplement to the user manual.
@@ -191,7 +191,7 @@
 \author{Lukas Knauer\\
 \small AG Sch\"unemann, RPTU Kaiserslautern-Landau\\
 \small \texttt{lknauer@rptu.de}}
-\date{Software version 1.2.1 \quad\textbar\quad Document compiled \today}
+\date{Software version 1.2.2 \quad\textbar\quad Document compiled \today}
 
 \begin{document}
 
@@ -308,7 +308,7 @@ but distinct -- the distinction is spelled out in
 \toprule
 \textbf{Property} & \textbf{Value} & \textbf{Notes} \\
 \midrule
-Package version           & 1.2.1              & SemVer; the audit trail
+Package version           & 1.2.2              & SemVer; the audit trail
                                                   is \cref{sec:audit-trail}. \\
 Python                    & $\geq$ 3.11        & Type-hint syntax used. \\
 Primary input             & Gaussian \file{.log} \texttt{Freq=hpmodes}
@@ -567,6 +567,26 @@ At the lower edge no synthetic zero is inserted: if no real mode
 exists below \cfgkey{freq\_min}, the interpolation's
 \texttt{left}~$= 0.0$ boundary is already the physically correct
 behaviour (the spectrum starts at higher frequency).
+
+\paragraph{Grid extent (v1.2.2).}
+Context modes anchor the interpolation; they do not decide how far the
+grid reaches. That is settled by \fn{export.interp\_grid\_bounds}, which
+since v1.2.2 reproduces the requested range exactly: the grid runs from
+\cfgkey{freq\_min} to \cfgkey{freq\_max} (in multi-window mode, from the
+hull of all windows for the top-level overall export), with a missing
+lower bound taken as $0.0$ -- the same convention as
+\fn{Config.get\_windows} and the \texttt{0--800\_cm-1} folder label.
+Grid points with no mode nearby take the \texttt{np.interp}
+\texttt{left}/\texttt{right}~$= 0.0$ value, which reads as ``no modes in
+this range''. Only a run with no requested range at all
+(\cfgkey{freq\_min}, \cfgkey{freq\_max} and \cfgkey{freq\_windows} all
+unset) follows the data, padded by \cfgkey{interp\_edge\_extend}. Before
+v1.2.2 the data-driven fallback also applied whenever
+\cfgkey{freq\_min}/\cfgkey{freq\_max} were internally cleared -- which is
+exactly what the multi-window overall export does so that
+\fn{Config.outdir} creates no frequency subfolder -- so a request for
+0--100 cm$^{-1}$ produced a top-level grid starting at the first real
+mode while the \texttt{0--100\_cm-1} subfolder started at $0.00$.
 
 \subsection{Phase 6 -- system-wide aggregates}
 \label{sec:phase6-aggregate}
@@ -5959,11 +5979,13 @@ table at the start of each section gives the line-range in
 \cfgkey{interp\_boundary\_mode} & \texttt{str} & \texttt{"context"}
   & Boundary handling: \texttt{"context"} loads context modes
     (\cref{sec:algo-context}), \texttt{"zero"} forces zero outside
-    the window, \texttt{"extend"} flatly extends the boundary
-    value. \\
+    the window, \texttt{"nearest"} flatly extends the boundary
+    value. Any other value is rejected by \fn{Config.validate}. \\
 \cfgkey{interp\_edge\_extend} & \texttt{float} & \texttt{0.5}
-  & Edge-extension distance (cm$^{-1}$) for
-    \texttt{interp\_boundary\_mode} = \texttt{"extend"}. \\
+  & Grid padding (cm$^{-1}$) beyond the first/last mode. Since
+    v1.2.2 in effect \emph{only} when no frequency range is
+    requested; with a range the grid spans exactly that range
+    (\cref{sec:algo-context}). \\
 \cfgkey{interp\_context\_cm1} & \texttt{float} & \texttt{5.0}
   & Width of the context-mode search window
     (\cref{sec:algo-context}). \\
@@ -7146,17 +7168,18 @@ configs run unchanged under v1.0.4.
 \part{Test Suite}
 \label{sec:test-suite}
 
-This part documents the test suite. As of v1.2.1 it comprises
-177 unit tests + 4 end-to-end (E2E) smoke tests (181 total; the
+This part documents the test suite. As of v1.2.2 it comprises
+191 unit tests + 4 end-to-end (E2E) smoke tests (195 total; the
 E2E tests carry the \texttt{slow} marker and are deselected by
 default). The detailed per-suite sections that follow describe the
 v1.0.4 regression baseline; the suite was expanded in v1.1.0
 (SSE-rename guards), v1.2.0 (critical-review regression tests,
 including a default-run headline-$\Lambda$ regression and PCET
-angle-criterion tests) and v1.2.1 (ORCA reduced-mass reconstruction).
+angle-criterion tests), v1.2.1 (ORCA reduced-mass reconstruction)
+and v1.2.2 (interpolation grid range).
 
 % -------------------------------------------------------------------------
-\section{Overview: 181 tests}
+\section{Overview: 195 tests}
 
 \begin{longtable}{p{0.34\textwidth} p{0.08\textwidth} p{0.50\textwidth}}
 \toprule
@@ -7177,6 +7200,10 @@ angle-criterion tests) and v1.2.1 (ORCA reduced-mass reconstruction).
     additivity, scaling, non-negativity. \\
 \fn{test\_pcet\_et.py} & 14 & H-bond acceptor detection, exclusions,
     element filter, and the D--H$\cdots$A angle criterion. \\
+\fn{test\_interp\_grid\_range\_v122.py} & 14 & Interpolation grid spans
+    the requested range: explicit bounds, upper-bound-only $\to 0.0$,
+    no-range runs stay data-driven, infinite/degenerate bounds fall back
+    safely, exporter keyword parity. \\
 \fn{test\_ca\_umap\_and\_exports.py} & 10 & C$\alpha$-UMAP embedding and
     Excel/plot export paths. \\
 \fn{test\_sse\_physics\_v105.py} & 8 & SSE rigid-body decomposition
@@ -7195,7 +7222,7 @@ angle-criterion tests) and v1.2.1 (ORCA reduced-mass reconstruction).
 \fn{test\_smoke.py} (E2E, \texttt{slow}) & 4 & End-to-end smoke tests on
     the Cys$_4$ benchmark log (full pipeline to Excel). \\
 \midrule
-\textbf{Total} & \textbf{181} & \\
+\textbf{Total} & \textbf{195} & \\
 \bottomrule
 \end{longtable}
 

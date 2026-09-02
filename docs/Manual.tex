@@ -1,6 +1,6 @@
 % =========================================================================
 % modenanalyse_2fe2s -- Manual and theoretical documentation (English)
-% Version 1.2.1  (July 2026)
+% Version 1.2.2  (September 2026)
 %
 % Lukas Knauer, AG Schuenemann, RPTU Kaiserslautern-Landau
 % =========================================================================
@@ -212,7 +212,7 @@
   \begin{center}
     \vspace*{2cm}
     {\Huge\bfseries\color{accent} modenanalyse\_2fe2s}\\[0.4cm]
-    {\large Version 1.2.1}\\[2cm]
+    {\large Version 1.2.2}\\[2cm]
 
     \rule{\textwidth}{0.4pt}\\[0.3cm]
     {\LARGE\bfseries Manual and Theoretical Documentation}\\[0.3cm]
@@ -319,7 +319,7 @@ calculation using specialized external tools.
 
 \begin{infobox}
 \textbf{Changelog highlights since v1.0.0.}
-This release of the manual reflects the package at version v1.2.1
+This release of the manual reflects the package at version v1.2.2
 (see \texttt{CHANGELOG.md} for the full list). The substantive
 deltas since v1.0.0 are:
 \begin{itemize}\setlength{\itemsep}{0pt}
@@ -377,6 +377,18 @@ deltas since v1.0.0 are:
         mass'' convention), replacing a \texttt{1.0}~amu placeholder that
         made absolute ORCA amplitudes too large by $\sqrt{\mu}$. The
         Gaussian path is unaffected.
+  \item \textbf{v1.2.2}: the interpolation grid of
+        \texttt{*\_analysis\_interp\#\#.xlsx} and
+        \texttt{*\_analysis\_SSE\_interp\#\#.xlsx} now spans exactly the
+        requested frequency range instead of being clipped to
+        [first mode $-$ \texttt{interp\_edge\_extend},
+        last mode $+$ \texttt{interp\_edge\_extend}]. A missing
+        \texttt{freq\_min} means $0.0$, matching the
+        \texttt{0--800\_cm-1} folder label. Grid points without a nearby
+        mode are filled with $0.0$, so grids from different windows and
+        runs are comparable column-by-column; only a run with no
+        requested range still follows the data. Affects the number of
+        leading/trailing rows, not the interpolated values.
 \end{itemize}
 \end{infobox}
 
@@ -2847,11 +2859,13 @@ intervals on both ends, which over-counted exact-boundary modes.
 \texttt{interp\_step}     & \texttt{0.05}  & Step size (cm$^{-1}$)
   for the interpolated pDOS export. \\
 \texttt{interp\_boundary\_mode} & \texttt{"context"} & Behavior at
-  the window edge: \texttt{"context"} (with buffer zone),
-  \texttt{"hard"} (sharp cut), \texttt{"extend"} (linearly
-  extrapolated). \\
-\texttt{interp\_edge\_extend} & \texttt{0.5} & Buffer-zone width
-  (cm$^{-1}$ or fraction) in \texttt{"context"} mode. \\
+  the window edge: \texttt{"context"} (context modes anchor both
+  edges), \texttt{"zero"} (edge value $0.0$ -- ``no data in this
+  range''), \texttt{"nearest"} (edge value = nearest present mode). \\
+\texttt{interp\_edge\_extend} & \texttt{0.5} & Grid padding
+  (cm$^{-1}$) beyond the first/last mode. Since v1.2.2 this applies
+  \emph{only} when no frequency range is requested; with a range the
+  grid spans exactly that range. \\
 \texttt{scan\_chunk\_mb}  & \texttt{16}    & Block size for log-file
   scanning in MB. For very large log files ($>$1 GB), increasing
   this can speed up reading. \\

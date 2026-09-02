@@ -1,6 +1,6 @@
 % =========================================================================
 % modenanalyse_2fe2s -- Handbuch und theoretische Dokumentation
-% Version 1.2.1  (Juli 2026)
+% Version 1.2.2  (September 2026)
 %
 % Lukas Knauer, AG Schuenemann, RPTU Kaiserslautern-Landau
 % =========================================================================
@@ -209,7 +209,7 @@
   \begin{center}
     \vspace*{2cm}
     {\Huge\bfseries\color{accent} modenanalyse\_2fe2s}\\[0.4cm]
-    {\large Version 1.2.1}\\[2cm]
+    {\large Version 1.2.2}\\[2cm]
 
     \rule{\textwidth}{0.4pt}\\[0.3cm]
     {\LARGE\bfseries Handbuch und theoretische Dokumentation}\\[0.3cm]
@@ -350,7 +350,7 @@ spezialisierten Werkzeugen separat berechnen.
 
 \begin{infobox}
 \textbf{Changelog-H\"ohepunkte seit v1.0.0.}
-Diese Manual-Ausgabe beschreibt das Paket im Stand v1.2.1
+Diese Manual-Ausgabe beschreibt das Paket im Stand v1.2.2
 (vollst\"andige Liste in \texttt{CHANGELOG.md}). Inhaltliche
 \"Anderungen seit v1.0.0:
 \begin{itemize}\setlength{\itemsep}{0pt}
@@ -413,6 +413,19 @@ Diese Manual-Ausgabe beschreibt das Paket im Stand v1.2.1
         \texttt{1.0}-amu-Platzhalter, der die absoluten ORCA-Amplituden um
         $\sqrt{\mu}$ zu gro\ss{} machte. Der Gaussian-Pfad bleibt
         unver\"andert.
+  \item \textbf{v1.2.2}: Das Interpolationsraster von
+        \texttt{*\_analysis\_interp\#\#.xlsx} und
+        \texttt{*\_analysis\_SSE\_interp\#\#.xlsx} umfasst jetzt exakt den
+        angeforderten Frequenzbereich, statt auf
+        [erste Mode $-$ \texttt{interp\_edge\_extend},
+        letzte Mode $+$ \texttt{interp\_edge\_extend}] beschnitten zu
+        werden. Eine fehlende \texttt{freq\_min} bedeutet $0.0$ -- passend
+        zum Ordnerlabel \texttt{0--800\_cm-1}. Rasterpunkte ohne
+        benachbarte Mode werden mit $0.0$ belegt, sodass Raster
+        verschiedener Fenster und L\"aufe spaltenweise vergleichbar sind;
+        nur ein Lauf ohne angeforderten Bereich folgt weiterhin den Daten.
+        Betroffen ist die Zahl der f\"uhrenden/abschlie\ss{}enden Zeilen,
+        nicht die interpolierten Werte.
 \end{itemize}
 \end{infobox}
 
@@ -2899,10 +2912,14 @@ liegende Modes doppelt z\"ahlten.
 \texttt{interp\_step}     & \texttt{0.05}  & Schrittweite (cm$^{-1}$)
   fuer interpolierten pDOS-Export. \\
 \texttt{interp\_boundary\_mode} & \texttt{"context"} & Verhalten am
-  Fenster-Rand: \texttt{"context"} (mit Pufferzone), \texttt{"hard"}
-  (scharfer Schnitt), \texttt{"extend"} (linear extrapoliert). \\
-\texttt{interp\_edge\_extend} & \texttt{0.5} & Pufferzone-Breite (cm$^{-1}$
-  bzw.\ Anteil) im \texttt{"context"}-Modus. \\
+  Fenster-Rand: \texttt{"context"} (Kontextmoden verankern beide
+  R\"ander), \texttt{"zero"} (Randwert $0.0$ -- ``keine Daten in diesem
+  Bereich''), \texttt{"nearest"} (Randwert = n\"achste vorhandene
+  Mode). \\
+\texttt{interp\_edge\_extend} & \texttt{0.5} & Raster-Puffer (cm$^{-1}$)
+  \"uber die erste/letzte Mode hinaus. Seit v1.2.2 nur noch wirksam, wenn
+  \emph{kein} Frequenzbereich angefordert wurde; mit Bereich umfasst das
+  Raster exakt diesen Bereich. \\
 \texttt{scan\_chunk\_mb}  & \texttt{16}    & Block-Gr\"o\ss e f\"ur
   Logfile-Scan in MB. F\"ur sehr gro\ss e Logfiles ($>$1 GB) kann
   Erh\"ohen das Lesen beschleunigen. \\
