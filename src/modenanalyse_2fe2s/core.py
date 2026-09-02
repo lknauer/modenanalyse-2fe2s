@@ -2293,4 +2293,4 @@ def extract_dominant_scsd_irreps(scsd_dict: Dict) -> Tuple[str, str, Dict[str, f
     return primary, secondary, contributions
 
 
-__version__ = "1.2.1"  # kept in sync with package version (config.__version__)
+__version__ = "1.2.2"  # kept in sync with package version (config.__version__)

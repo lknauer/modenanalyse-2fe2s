@@ -121,7 +121,8 @@ amplitude_threshold  = 0.001  # Modes below this threshold are discarded
 coord_match_tol      = 1.0    # Tolerance for PDB-Gaussian atom matching (A)
 interp_step          = 0.05   # Interpolation grid for frequency view
 interp_boundary_mode = "context"  # "context" = with context modes across window boundary
-interp_edge_extend   = 0.5    # Grid extension beyond the window
+interp_edge_extend   = 0.5    # Grid extension -- only used when NO range is set
+                              # (with a range the grid spans exactly that range)
 interp_context_cm1   = 5.0    # Context width (cm-1) across window boundaries
 scan_chunk_mb        = 16     # Read chunk size for the log-file scan
 use_cache            = true   # Cache block metadata and scan offsets

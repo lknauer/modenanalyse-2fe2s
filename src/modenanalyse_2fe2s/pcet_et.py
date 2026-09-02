@@ -355,4 +355,4 @@ def build_et_info(
     )
 
 
-__version__ = "1.2.1"  # match unified package version (config.__version__)
+__version__ = "1.2.2"  # match unified package version (config.__version__)

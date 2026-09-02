@@ -1335,6 +1335,16 @@ def _run_analysis_single(cfg: "Config") -> int:
             except Exception as _eg:
                 runlog.warn(f"Ca-UMAP Gesamt: {_eg}")
 
+        # v1.2.2: Das Interpolations-Raster der Gesamtauswertung spannt
+        # genau den angeforderten Bereich (Huelle aller Fenster), nicht nur
+        # den von Moden belegten Ausschnitt. ges_cfg.freq_min/freq_max sind
+        # oben bewusst geloescht (sonst legt Config.outdir() einen
+        # Frequenz-Unterordner an), deshalb die Grenzen hier explizit.
+        _ges_grid_lo = min(lo for lo, _hi in windows)
+        _ges_grid_hi = max(hi for _lo, hi in windows)
+        if _ges_grid_hi == float("inf"):
+            _ges_grid_hi = None      # offenes Fenster -> Datenrand
+
         ges_payload = ExportPayload(
             results              = results,
             coord_info           = coord_info,
@@ -1342,6 +1352,8 @@ def _run_analysis_single(cfg: "Config") -> int:
             logname              = base,
             cfg                  = ges_cfg,
             runlog               = runlog,
+            grid_min             = _ges_grid_lo,
+            grid_max             = _ges_grid_hi,
             cluster_info         = _cluster_info,
             b_factors            = b_factors,
             atoms                = atoms,

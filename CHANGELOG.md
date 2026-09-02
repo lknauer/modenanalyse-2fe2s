@@ -5,6 +5,75 @@ All notable changes to `modenanalyse_2fe2s` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.2] — 2026-09-02
+
+Usability fix for the interpolated Excel exports: **the requested frequency
+range is the range you get.**
+
+### Changed
+
+- **Interpolation grid spans exactly the requested range.** The frequency
+  grid of `_analysis_interp{step}.xlsx` and `_analysis_SSE_interp{step}.xlsx`
+  now starts at the requested lower bound and ends at the requested upper
+  bound, instead of being clipped to *first mode − `interp_edge_extend`* …
+  *last mode + `interp_edge_extend`*. Grid points with no mode nearby are
+  filled with `0.0` by `np.interp` ("no modes in this range"), so grids from
+  different windows and different runs are now directly comparable
+  column-by-column. Only a run with **no** range set at all (`freq_min`,
+  `freq_max` and `freq_windows` all unset) still follows the data.
+  Three user-visible consequences:
+  - *Multi-window mode:* the top-level overall export now spans the hull of
+    all windows. Previously it silently fell back to the data range, because
+    `runner` clears `freq_min`/`freq_max` for that export so that
+    `Config.outdir()` does not create a frequency subfolder — a request of
+    `freq_windows = [[0, 100]]` produced a top-level grid starting at
+    e.g. 4.2179 cm⁻¹ while the `0-100_cm-1/` subfolder correctly started
+    at 0.00.
+  - *Upper bound only:* `freq_max = 800` without `freq_min` (the shipped
+    template default) now yields a grid 0.00 … 800.00 cm⁻¹, matching the
+    `0-800_cm-1` folder label and `Config.get_windows()`, both of which
+    already treat a missing lower bound as 0.0.
+  - `interp_edge_extend` is now only in effect for runs without a requested
+    range. *(Output change: number of leading/trailing rows in the two
+    interpolated Excel files; the interpolated values themselves are
+    unchanged.)*
+
+### Added
+
+- `export.interp_grid_bounds(cfg, freqs, grid_min=None, grid_max=None)` —
+  single source of truth for the grid range, previously duplicated (and
+  drifting) in `export_interpolated_excel` and `export_sse_interp_excel`.
+  Falls back to the data range for non-finite bounds (open windows,
+  `hi = inf`) and for degenerate ranges, so the grid can never come out
+  empty.
+- `ExportPayload.grid_min` / `.grid_max` plus matching keyword arguments on
+  both interpolation exporters, so the multi-window overall export can pass
+  the window hull without touching `cfg.freq_min`/`cfg.freq_max` (which
+  drive the output subfolder name).
+
+### Fixed
+
+- `examples/full_template.toml`: the `interp_boundary_mode` comment listed
+  the non-existent values `"fade"` / `"hard"`. The accepted values are
+  `"context"` / `"zero"` / `"nearest"` — copying the documented ones aborted
+  the run with a config-validation error.
+- `examples/full_template.toml`: documented that `freq_min`/`freq_max` are
+  ignored while `freq_windows` is set, and what range the exports cover.
+
+### Tests
+
+- Added `tests/test_interp_grid_range_v122.py` (14 tests): requested range
+  honoured exactly, upper-bound-only implies 0.0, no-range runs stay
+  data-driven, explicit overrides win over `cfg`, infinite/degenerate bounds
+  fall back safely, and both exporters keep the `grid_min`/`grid_max`
+  keywords in sync.
+
+### Notes
+
+- The manual PDFs (`docs/Manual.pdf`, `docs/Anleitung.pdf`,
+  `docs/Supplement.pdf`) still carry the v1.2.1 build and were not
+  regenerated for this patch release.
+
 ## [1.2.1] — 2026-07-08
 
 Follow-up to v1.2.0 that resolves the one item left open there (ORCA absolute

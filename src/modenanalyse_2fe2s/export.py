@@ -22,8 +22,11 @@ output files
     Interpolated core analysis on a uniform grid
     (step size = cfg.interp_step). Symmetric boundary treatment:
     context modes left (context_results_left) and right (context_results).
+    Since v1.2.2 the grid spans exactly the requested frequency range
+    (see ``interp_grid_bounds``); only a run without any requested range
+    follows the data.
 ``_analysis_SSE_interp{step}.xlsx``
-    Secondary-structure amplitudes on a uniform grid.
+    Secondary-structure amplitudes on a uniform grid (same grid rule).
 
 Public functions
 -----------------------
@@ -105,6 +108,14 @@ class ExportPayload:
     context_results:      list    = _field(default_factory=list)
     context_results_left: list    = _field(default_factory=list)
 
+    # Explizite Rastergrenzen fuer die Interpolations-Exporte (v1.2.2).
+    # Nur noetig, wenn cfg.freq_min/freq_max den angeforderten Bereich
+    # nicht tragen koennen -- konkret beim Gesamt-Export im Multi-Window-
+    # Modus, wo beide Felder geloescht sind, damit Config.outdir() keinen
+    # Frequenz-Unterordner anlegt. None = aus cfg ableiten.
+    grid_min:             object  = None
+    grid_max:             object  = None
+
     # Embeddings
     embedding_coords:   dict    = _field(default_factory=dict)
     embed_feat_matrix:  object  = None
@@ -175,6 +186,7 @@ def export_all(payload):
             cfg, p.runlog,
             context_results=p.context_results,
             context_results_left=p.context_results_left,
+            grid_min=p.grid_min, grid_max=p.grid_max,
         )
     except Exception as exc:
         p.runlog.warn(f"interpolation Excel failed: {exc}")
@@ -186,6 +198,7 @@ def export_all(payload):
             cfg, p.runlog,
             context_results=p.context_results,
             context_results_left=p.context_results_left,
+            grid_min=p.grid_min, grid_max=p.grid_max,
         )
     except Exception as exc:
         p.runlog.warn(f"SSE-interpolation Excel failed: {exc}")
@@ -706,6 +719,67 @@ def export_embedding_excel(
 # 5) INTERPOLATIONS-EXCEL
 # ===========================================================================
 
+def interp_grid_bounds(cfg, freqs, grid_min=None, grid_max=None):
+    """Liefert ``(f_min, f_max)`` fuer das Interpolations-Frequenzraster.
+
+    Regel (v1.2.2): **Wer einen Frequenzbereich angibt, bekommt genau
+    diesen Bereich.** Eine Eingabe von 0-100 cm-1 liefert ein Raster
+    0.00 ... 100.00 cm-1 -- unabhaengig davon, wo die erste bzw. letzte
+    echte Mode liegt. Rasterpunkte ohne benachbarte Mode belegt
+    ``np.interp`` mit 0.0 ("keine Moden in diesem Bereich"), so dass die
+    Raster verschiedener Fenster und Laeufe direkt vergleichbar sind.
+
+    Nur wenn *kein* Bereich angefordert wurde, folgt das Raster den Daten
+    (erste/letzte Mode -/+ ``interp_edge_extend``).
+
+    Parameters
+    ----------
+    cfg : Config
+        Benoetigt ``freq_min``, ``freq_max``, ``interp_edge_extend``.
+    freqs : array_like
+        Frequenzen der analysierten Moden (nicht leer).
+    grid_min, grid_max : float or None, optional
+        Explizite Grenzen mit Vorrang vor ``cfg.freq_min``/``cfg.freq_max``.
+        Wird beim Gesamt-Export im Multi-Window-Modus verwendet, wo
+        cfg.freq_min/freq_max geloescht sind, damit ``Config.outdir()``
+        keinen Frequenz-Unterordner anlegt.
+
+    Returns
+    -------
+    (float, float)
+        Untere und obere Rastergrenze in cm-1.
+
+    Notes
+    -----
+    Fehlt nur die untere Grenze, waehrend eine obere angegeben wurde, ist
+    die untere 0.0 -- dieselbe Konvention wie in ``Config.get_windows()``
+    und ``Config.freq_label()`` (das Label lautet dann z.B. "0-800_cm-1").
+    Nicht-endliche Grenzen (z.B. ``inf`` als oberes Fensterende) fallen
+    auf die datengetriebene Variante zurueck.
+    """
+    lo = grid_min if grid_min is not None else cfg.freq_min
+    hi = grid_max if grid_max is not None else cfg.freq_max
+    if lo is not None and not np.isfinite(lo):
+        lo = None
+    if hi is not None and not np.isfinite(hi):
+        hi = None
+    # Eine angegebene Obergrenze impliziert die Untergrenze 0.0
+    if lo is None and hi is not None:
+        lo = 0.0
+    f_arr = np.asarray(freqs, dtype=float)
+    if lo is None:
+        lo = float(f_arr.min()) - cfg.interp_edge_extend
+    if hi is None:
+        hi = float(f_arr.max()) + cfg.interp_edge_extend
+    lo, hi = float(lo), float(hi)
+    if hi <= lo:
+        # Degenerierter Bereich: auf das Datenraster zurueckfallen,
+        # sonst waere f_grid leer und die Excel ohne Frequenzspalten.
+        lo = float(f_arr.min()) - cfg.interp_edge_extend
+        hi = float(f_arr.max()) + cfg.interp_edge_extend
+    return lo, hi
+
+
 def export_interpolated_excel(
         results:              List[Dict],
         coord_info:           CoordInfo,
@@ -714,6 +788,8 @@ def export_interpolated_excel(
         runlog:               RunLog,
         context_results:      Optional[List[Dict]] = None,
         context_results_left: Optional[List[Dict]] = None,
+        grid_min:             Optional[float] = None,
+        grid_max:             Optional[float] = None,
 ):
     """Writes interpolierte Kennzahlen in ``_analysis_interp{step}.xlsx``.
 
@@ -740,6 +816,8 @@ def export_interpolated_excel(
     context_results_left : list of dict, optional
         Kontext-modes unterhalb von ``freq_min`` (links).
         Verhindert Nullsetzung if echte modes unterhalb of the Fensters liegen.
+    grid_min, grid_max : float, optional
+        Explizite Rastergrenzen, siehe ``interp_grid_bounds``.
     """
     if not _HAS_OPENPYXL:
         runlog.warn("Interpolation export: openpyxl not installed, "
@@ -750,10 +828,8 @@ def export_interpolated_excel(
                     "_analysis_interp*.xlsx will not be created.")
         return
     try:
-        f_min = cfg.freq_min if cfg.freq_min is not None else \
-            min(r["freq"] for r in results) - cfg.interp_edge_extend
-        f_max = cfg.freq_max if cfg.freq_max is not None else \
-            max(r["freq"] for r in results) + cfg.interp_edge_extend
+        f_min, f_max = interp_grid_bounds(
+            cfg, [r["freq"] for r in results], grid_min, grid_max)
         f_grid = np.arange(f_min, f_max + cfg.interp_step/2, cfg.interp_step)
         # Kontext-modes an BEIDEN Raendern for korrekte Randinterpolation
         _ctx_l = context_results_left or []
@@ -901,6 +977,8 @@ def export_sse_interp_excel(
         runlog:               RunLog,
         context_results:      Optional[List[Dict]] = None,
         context_results_left: Optional[List[Dict]] = None,
+        grid_min:             Optional[float] = None,
+        grid_max:             Optional[float] = None,
 ):
     """Writes interpolierte SSE-Amplituden in ``_analysis_SSE_interp{step}.xlsx``.
 
@@ -921,6 +999,8 @@ def export_sse_interp_excel(
         Kontext-modes oberhalb von ``freq_max`` (rechts).
     context_results_left : list of dict, optional
         Kontext-modes unterhalb von ``freq_min`` (links).
+    grid_min, grid_max : float, optional
+        Explizite Rastergrenzen, siehe ``interp_grid_bounds``.
     """
     if not _HAS_OPENPYXL:
         runlog.warn("SSE interp export: openpyxl not installed, "
@@ -945,10 +1025,7 @@ def export_sse_interp_excel(
         sort_idx   = sorted(range(len(freqs_all_unsorted)),
                             key=lambda i: freqs_all_unsorted[i])
         freqs_full = np.array([freqs_all_unsorted[i] for i in sort_idx])
-        f_min  = cfg.freq_min if cfg.freq_min is not None else \
-            freqs.min() - cfg.interp_edge_extend
-        f_max  = cfg.freq_max if cfg.freq_max is not None else \
-            freqs.max() + cfg.interp_edge_extend
+        f_min, f_max = interp_grid_bounds(cfg, freqs, grid_min, grid_max)
         f_grid = np.arange(f_min, f_max + cfg.interp_step/2, cfg.interp_step)
         n      = len(f_grid)
 
@@ -2374,7 +2451,7 @@ def _ws_cluster_profil(wb, results, cluster_data, feat_names):
             import warnings as _w; _w.warn(f"[export] Cluster-Profil Error: {_e}")
 
 
-__version__ = "1.2.1"  # kept in sync with package version (config.__version__)
+__version__ = "1.2.2"  # kept in sync with package version (config.__version__)
 
 
 # ===========================================================================

@@ -39,8 +39,15 @@ logname_suffix = ""                        # Suffix for multiple runs from same 
 freq_max   = 800.0        # Upper filter bound (cm^-1). Default: None.
                           # RECOMMENDED: 800 (= NRVS measurement window; saves ~70% runtime)
 
+# The requested range is what you get: the interpolated Excel files span
+# exactly freq_min ... freq_max (a missing freq_min means 0.0), padded with
+# zeros where no modes exist. Only a run without any range set follows the
+# data (first/last mode +- interp_edge_extend).
+
 # Optional: multi-window mode. One Excel subfolder per window;
 # the cluster/embedding analysis is run independently within each window.
+# The top-level overall export then spans the hull of all windows.
+# NOTE: freq_min/freq_max are IGNORED while freq_windows is set.
 # freq_windows = [[0, 100], [100, 300], [300, 500], [500, 700]]
 
 # -----------------------------------------------------------------------------
@@ -148,6 +155,6 @@ scan_chunk_mb        = 16          # Chunk size for log-file scan (MB). Higher =
 show_errors_in_excel = true        # List parse errors in the Excel sheet "Errors"
 use_cache            = true        # Use block metadata cache (.cache_blocks.npz)
 interp_step          = 0.05        # Frequency grid spacing for interpolation Excel (cm^-1)
-interp_boundary_mode = "context"   # Boundary handling: "context" / "fade" / "hard"
+interp_boundary_mode = "context"   # Boundary handling: "context" / "zero" / "nearest"
 interp_edge_extend   = 0.5         # Interpolation extension at the edge (cm^-1)
 interp_context_cm1   = 5.0         # Context-modes range on both sides of filter limits (cm^-1)

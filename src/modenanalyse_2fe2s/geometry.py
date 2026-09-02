@@ -1720,4 +1720,4 @@ def detect_sse_phipsi(
     return sse_elements
 
 
-__version__ = "1.2.1"  # kept in sync with package version (config.__version__)
+__version__ = "1.2.2"  # kept in sync with package version (config.__version__)

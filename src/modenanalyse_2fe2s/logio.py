@@ -1508,4 +1508,4 @@ def parse_pdb(pdb_path: str, chain_filter: str = "") -> Dict:
         "sse_elements": sse_elems,
     }
 
-__version__ = "1.2.1"  # kept in sync with package version (config.__version__)
+__version__ = "1.2.2"  # kept in sync with package version (config.__version__)
