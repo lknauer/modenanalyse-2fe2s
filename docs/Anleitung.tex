@@ -1,6 +1,6 @@
 % =========================================================================
 % modenanalyse_2fe2s -- Handbuch und theoretische Dokumentation
-% Version 1.2.2  (September 2026)
+% Version 1.2.3  (September 2026)
 %
 % Lukas Knauer, AG Schuenemann, RPTU Kaiserslautern-Landau
 % =========================================================================
@@ -209,7 +209,7 @@
   \begin{center}
     \vspace*{2cm}
     {\Huge\bfseries\color{accent} modenanalyse\_2fe2s}\\[0.4cm]
-    {\large Version 1.2.2}\\[2cm]
+    {\large Version 1.2.3}\\[2cm]
 
     \rule{\textwidth}{0.4pt}\\[0.3cm]
     {\LARGE\bfseries Handbuch und theoretische Dokumentation}\\[0.3cm]
@@ -350,7 +350,7 @@ spezialisierten Werkzeugen separat berechnen.
 
 \begin{infobox}
 \textbf{Changelog-H\"ohepunkte seit v1.0.0.}
-Diese Manual-Ausgabe beschreibt das Paket im Stand v1.2.2
+Diese Manual-Ausgabe beschreibt das Paket im Stand v1.2.3
 (vollst\"andige Liste in \texttt{CHANGELOG.md}). Inhaltliche
 \"Anderungen seit v1.0.0:
 \begin{itemize}\setlength{\itemsep}{0pt}
@@ -426,6 +426,19 @@ Diese Manual-Ausgabe beschreibt das Paket im Stand v1.2.2
         nur ein Lauf ohne angeforderten Bereich folgt weiterhin den Daten.
         Betroffen ist die Zahl der f\"uhrenden/abschlie\ss{}enden Zeilen,
         nicht die interpolierten Werte.
+  \item \textbf{v1.2.3}: Robustheit der Excel-Exporte. Ist eine
+        Zieldatei gesperrt (unter Windows: die Datei des vorigen Laufs
+        ist noch in Excel ge\"offnet), wird die Arbeitsmappe als
+        \texttt{<Name>\_1.xlsx} geschrieben und dies auf der Konsole
+        \emph{und} im REPORT gemeldet -- vorher blieb still die alte
+        Datei liegen. Im Multi-Window-Modus erreichen die Kontextmoden
+        jetzt die Fenster- und Gesamtexporte (die Kontextgrenzen folgen
+        der H\"ulle aller Fenster, nicht mehr den dort ignorierten
+        \texttt{freq\_min}/\texttt{freq\_max}); die Warnung
+        \texttt{no context modes available} und der unverankerte obere
+        Rasterrand entfallen damit. Der REPORT nennt im Multi-Window-Modus
+        das Basisverzeichnis, die Frequenzspalte der Interpolations-Excel
+        ist auf sechs Nachkommastellen gerundet.
 \end{itemize}
 \end{infobox}
 

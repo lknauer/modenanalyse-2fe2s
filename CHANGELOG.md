@@ -54,9 +54,11 @@ interpolated Excel silently kept the stale file of a previous run.
   backbone PDBs, no warnings, interpolated grids 0.00 … 100.00 cm⁻¹ with
   context-anchored upper edge.
 
-### Notes
+### Docs
 
-- The manual PDFs still carry the v1.2.2 build.
+- Manual, Anleitung and Supplement regenerated for v1.2.3 (version history
+  entries; Supplement: multi-window context and locked-file paragraphs, test
+  overview 205).
 
 ## [1.2.2] — 2026-09-02
 

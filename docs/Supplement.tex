@@ -1,6 +1,6 @@
 % =========================================================================
 % modenanalyse_2fe2s -- Supplementary Technical Documentation
-% Version 1.2.2 (September 2026)
+% Version 1.2.3 (September 2026)
 % =========================================================================
 %
 % This document is the technical supplement to the user manual.
@@ -191,7 +191,7 @@
 \author{Lukas Knauer\\
 \small AG Sch\"unemann, RPTU Kaiserslautern-Landau\\
 \small \texttt{lknauer@rptu.de}}
-\date{Software version 1.2.2 \quad\textbar\quad Document compiled \today}
+\date{Software version 1.2.3 \quad\textbar\quad Document compiled \today}
 
 \begin{document}
 
@@ -308,7 +308,7 @@ but distinct -- the distinction is spelled out in
 \toprule
 \textbf{Property} & \textbf{Value} & \textbf{Notes} \\
 \midrule
-Package version           & 1.2.2              & SemVer; the audit trail
+Package version           & 1.2.3              & SemVer; the audit trail
                                                   is \cref{sec:audit-trail}. \\
 Python                    & $\geq$ 3.11        & Type-hint syntax used. \\
 Primary input             & Gaussian \file{.log} \texttt{Freq=hpmodes}
@@ -587,6 +587,37 @@ exactly what the multi-window overall export does so that
 \fn{Config.outdir} creates no frequency subfolder -- so a request for
 0--100 cm$^{-1}$ produced a top-level grid starting at the first real
 mode while the \texttt{0--100\_cm-1} subfolder started at $0.00$.
+
+\paragraph{Multi-window context (v1.2.3).}
+In multi-window mode the runner analyses all modes inside the hull of
+\cfgkey{freq\_windows} and then exports once per window plus one
+overall export. Up to v1.2.2 two things went wrong at the hull edges.
+First, the context modes were only loaded when \cfgkey{freq\_max}
+(\cfgkey{freq\_min}) happened to be set -- fields that are documented
+as ignored in multi-window mode -- so a TOML with only
+\cfgkey{freq\_windows} loaded none. Second, the per-window export took
+its context candidates from the already hull-filtered result list, so
+even when the runner had analysed them (``\texttt{97 context modes
+right}'') the top window ended without a right anchor and emitted
+``\texttt{interp\_boundary\_mode='context' but no context modes
+available}''; \texttt{np.interp} then fell to \texttt{right}~$=0$
+between the last analysed mode and the window bound. Since v1.2.3 the
+context ranges are derived from the hull ($\min lo$, $\max hi$; an
+open upper window loads no right context), the candidate pool of
+\fn{runner.\_window\_context} is the union of the analysed modes and
+both context lists, and the overall export receives the context lists
+as well.
+
+\paragraph{Locked output files (v1.2.3).}
+All Excel exporters save through \fn{export.\_save\_workbook}. A
+\texttt{PermissionError} on the target -- on Windows almost always the
+file of the previous run still open in Excel -- no longer drops the
+workbook: it is written to \texttt{<name>\_1.xlsx} (\texttt{\_2},
+\ldots) and the fallback is printed on the console and recorded as a
+REPORT warning. The motivating case was a multi-window run whose
+interpolated Excel ``looked un-interpolated'': the REPORT carried
+``\texttt{interpolation Excel failed: [Errno 13] Permission denied}''
+and the file being inspected was the stale one of an earlier run.
 
 \subsection{Phase 6 -- system-wide aggregates}
 \label{sec:phase6-aggregate}
@@ -7168,18 +7199,18 @@ configs run unchanged under v1.0.4.
 \part{Test Suite}
 \label{sec:test-suite}
 
-This part documents the test suite. As of v1.2.2 it comprises
-191 unit tests + 4 end-to-end (E2E) smoke tests (195 total; the
+This part documents the test suite. As of v1.2.3 it comprises
+201 unit tests + 4 end-to-end (E2E) smoke tests (205 total; the
 E2E tests carry the \texttt{slow} marker and are deselected by
 default). The detailed per-suite sections that follow describe the
 v1.0.4 regression baseline; the suite was expanded in v1.1.0
 (SSE-rename guards), v1.2.0 (critical-review regression tests,
 including a default-run headline-$\Lambda$ regression and PCET
-angle-criterion tests), v1.2.1 (ORCA reduced-mass reconstruction)
-and v1.2.2 (interpolation grid range).
+angle-criterion tests), v1.2.1 (ORCA reduced-mass reconstruction),
+v1.2.2 (interpolation grid range) and v1.2.3 (export robustness).
 
 % -------------------------------------------------------------------------
-\section{Overview: 195 tests}
+\section{Overview: 205 tests}
 
 \begin{longtable}{p{0.34\textwidth} p{0.08\textwidth} p{0.50\textwidth}}
 \toprule
@@ -7204,6 +7235,9 @@ and v1.2.2 (interpolation grid range).
     the requested range: explicit bounds, upper-bound-only $\to 0.0$,
     no-range runs stay data-driven, infinite/degenerate bounds fall back
     safely, exporter keyword parity. \\
+\fn{test\_v123\_export\_robustness.py} & 10 & Locked-file fallback of
+    \fn{export.\_save\_workbook}, \fn{runner.\_window\_context}
+    selection, REPORT base directory in multi-window mode. \\
 \fn{test\_ca\_umap\_and\_exports.py} & 10 & C$\alpha$-UMAP embedding and
     Excel/plot export paths. \\
 \fn{test\_sse\_physics\_v105.py} & 8 & SSE rigid-body decomposition
@@ -7222,7 +7256,7 @@ and v1.2.2 (interpolation grid range).
 \fn{test\_smoke.py} (E2E, \texttt{slow}) & 4 & End-to-end smoke tests on
     the Cys$_4$ benchmark log (full pipeline to Excel). \\
 \midrule
-\textbf{Total} & \textbf{195} & \\
+\textbf{Total} & \textbf{205} & \\
 \bottomrule
 \end{longtable}
 
