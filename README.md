@@ -17,7 +17,7 @@ electron transfer (PCET).
 | | |
 |---|---|
 | Quellcode / source | <https://gitlab.rhrk.uni-kl.de/ag-schuenemann/Modenanalyse-2Fe2S> |
-| Fertige Version (Gruppenlaufwerk) / ready-to-run build | `\Vesikel\shared\!Allgemein\Programme\Programme AG_Schünemann\Modenanalyse-2Fe2S\Modenanalyse-2Fe2S-1.2.3\` -- `install.bat (einmalig), dann Start_Modenanalyse-2Fe2S.cmd` |
+| Fertige Version (Gruppenlaufwerk) / ready-to-run build | `\\Vesikel\shared\!Allgemein\Programme\Programme AG_Schünemann\Modenanalyse-2Fe2S\Modenanalyse-2Fe2S-1.2.3\` -- `install.bat (einmalig), dann Start_Modenanalyse-2Fe2S.cmd` |
 | Anleitung (deutsch) | [`docs/Anleitung.pdf`](docs/Anleitung.pdf) |
 | Manual (English) | [`docs/Manual.pdf`](docs/Manual.pdf) |
 | Technical supplement (English) | [`docs/Supplement.pdf`](docs/Supplement.pdf) |
