@@ -1,5 +1,7 @@
 # modenanalyse_2fe2s
 
+[![pipeline status](https://gitlab.rhrk.uni-kl.de/ag-schuenemann/Modenanalyse-2Fe2S/badges/main/pipeline.svg)](https://gitlab.rhrk.uni-kl.de/ag-schuenemann/Modenanalyse-2Fe2S/-/pipelines)
+
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![Version](https://img.shields.io/badge/version-1.2.2-green.svg)](CHANGELOG.md)
@@ -9,6 +11,19 @@
 **Mode-resolved vibrational analysis for [2Fe-2S] clusters**, with focus on
 reorganization energies for electron transfer (ET) and proton-coupled
 electron transfer (PCET).
+
+## Wo liegt was / Where to find it
+
+| | |
+|---|---|
+| Quellcode / source | <https://gitlab.rhrk.uni-kl.de/ag-schuenemann/Modenanalyse-2Fe2S> |
+| Fertige Version (Gruppenlaufwerk) / ready-to-run build | `\Vesikel\shared\!Allgemein\Programme\Programme AG_Schünemann\Modenanalyse-2Fe2S\Modenanalyse-2Fe2S-1.2.3\` -- `install.bat (einmalig), dann Start_Modenanalyse-2Fe2S.cmd` |
+| Anleitung (deutsch) | [`docs/Anleitung.pdf`](docs/Anleitung.pdf) |
+| Manual (English) | [`docs/Manual.pdf`](docs/Manual.pdf) |
+| Technical supplement (English) | [`docs/Supplement.pdf`](docs/Supplement.pdf) |
+
+Entwickelt in der AG Schünemann, RPTU Kaiserslautern-Landau (Lukas Knauer). Alle Programme der AG
+liegen nebeneinander auf dem Gruppenlaufwerk; `README.md` dort ist der Index.
 
 ## What this tool does
 
